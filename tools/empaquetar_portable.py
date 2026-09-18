@@ -216,6 +216,15 @@ def main() -> int:
 
     # los zip/pip de armado no van al paquete final
     shutil.rmtree(salida / "tmp", ignore_errors=True)
+    for anidada in salida.glob("Xbox360WebPad-Portable*"):   # armados anidados
+        if anidada.is_dir():
+            log(f"quitando armado anidado de la carpeta portable: {anidada.name}")
+            shutil.rmtree(anidada, ignore_errors=True)
+        else:
+            try:
+                anidada.unlink()
+            except OSError:
+                pass
     for sobrante in salida.glob("*.zip"):          # que no se comprima a si mismo
         log(f"quitando {sobrante.name} de la carpeta portable")
         sobrante.unlink(missing_ok=True)

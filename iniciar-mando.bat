@@ -189,6 +189,21 @@ rem ------------------------------------------------------------------
 rem  4) Servidor + mando virtual
 rem ------------------------------------------------------------------
 :arrancar
+rem  Si el puerto ya esta escuchando, hay otro mando corriendo. En Windows dos
+rem  servidores pueden quedar escuchando el mismo puerto a la vez y los celulares
+rem  se reparten entre los dos (sintoma: el mando "a veces" no responde).
+netstat -ano | findstr "LISTENING" | findstr ":%PUERTO%" >nul 2>&1
+if errorlevel 1 goto puerto_libre
+echo.
+echo   AVISO: el puerto %PUERTO% ya esta en uso (ya hay un Xbox360WebPad andando).
+echo          No arranco otro para que los celulares no se repartan entre dos.
+echo          Cerra la otra ventana, o arranca este en otro puerto:
+echo               iniciar-mando.bat 8791
+echo.
+pause
+exit /b 1
+
+:puerto_libre
 echo   [4/4] Revisando el puerto MIDI (para Resolume / QLC+)...
 "%PYEXE%" tools\midi_listo.py
 if not errorlevel 3 goto midi_listo

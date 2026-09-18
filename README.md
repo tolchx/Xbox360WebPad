@@ -425,6 +425,12 @@ funciona en cualquier Windows x64 **sin instalar nada**.
    Si falta, corré el `.bat` con **botón derecho → Ejecutar como administrador** una vez.
 3. Probá desde el navegador del celular: `http://IP-DE-LA-PC:8790/pad`.
 
+**"El puerto 8790 ya está en uso".**
+El `.bat` se niega a arrancar un segundo mando a propósito: Windows deja que **dos
+servidores escuchen el mismo puerto a la vez** y entonces los celulares se reparten
+entre los dos (síntoma raro: el mando "a veces" no responde). Cerrá la otra ventana
+del `Xbox360WebPad`, o arrancá este en otro puerto: `iniciar-mando.bat 8791`.
+
 **El juego no reacciona.**
 * Arrancá el `.bat` **antes** que el juego.
 * En el panel, apretá **Probar mando (pulso A)**: si el juego responde, el mando
@@ -524,7 +530,9 @@ usá uno solo.
   solo mientras corre).
 * **Robustez MIDI**: *panic* automático al desconectarse, filtro de eco (loopMIDI
   devuelve lo que uno mismo escribe) y reconexión sola si se cae el puerto.
-* **Fixes**: la botonera MIDI ya no se superpone al mando (`hidden` vs `display:flex`);
+* **Fixes**: el `.bat` no arranca un segundo servidor si el puerto ya está en uso (en
+  Windows dos servidores pueden escuchar el mismo puerto y repartirse los celulares);
+  la botonera MIDI ya no se superpone al mando (`hidden` vs `display:flex`);
   el celular ya no se queda con `pad.js` viejo en caché tras una actualización.
 * **Pruebas**: 19 casos MIDI (con loopback real por el puerto virtual) + 15 del joystick.
 
