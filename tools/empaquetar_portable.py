@@ -36,6 +36,8 @@ PY_URL = (f"https://www.python.org/ftp/python/{PY_VERSION}/"
           f"python-{PY_VERSION}-embed-amd64.zip")
 GETPIP_URL = "https://bootstrap.pypa.io/get-pip.py"
 VIGEM_API = "https://api.github.com/repos/nefarius/ViGEmBus/releases/latest"
+LOOPMIDI_URL = ("https://www.tobias-erichsen.de/wp-content/uploads/2020/01/"
+                "loopMIDISetup_1_0_16_27.zip")
 
 ARCHIVOS = [
     "server.py",
@@ -128,14 +130,24 @@ def preparar_driver(salida: Path) -> None:
     destino.mkdir(parents=True, exist_ok=True)
     if any(destino.glob("ViGEmBus*.exe")):
         log("instalador ViGEmBus ya presente")
-        return
-    try:
-        datos = json_url(VIGEM_API)
-        exe = next(a for a in datos["assets"] if a["name"].lower().endswith(".exe"))
-        bajar(exe["browser_download_url"], destino / exe["name"])
-    except Exception as exc:                     # pragma: no cover
-        log(f"AVISO: no pude bajar el instalador ViGEmBus ({exc})")
-        log("       el .bat va a intentar instalarlo con winget")
+    else:
+        try:
+            datos = json_url(VIGEM_API)
+            exe = next(a for a in datos["assets"] if a["name"].lower().endswith(".exe"))
+            bajar(exe["browser_download_url"], destino / exe["name"])
+        except Exception as exc:                     # pragma: no cover
+            log(f"AVISO: no pude bajar el instalador ViGEmBus ({exc})")
+            log("       el .bat va a intentar instalarlo con winget")
+
+    # loopMIDI: el puerto MIDI virtual que usan Resolume / QLC+ (modo MIDI del pad)
+    if any(destino.glob("loopMIDI*.zip")):
+        log("instalador loopMIDI ya presente")
+    else:
+        try:
+            bajar(LOOPMIDI_URL, destino / LOOPMIDI_URL.rsplit("/", 1)[-1])
+        except Exception as exc:                     # pragma: no cover
+            log(f"AVISO: no pude bajar loopMIDI ({exc})")
+            log("       el modo MIDI va a quedar sin puerto (el joystick anda igual)")
 
 
 def copiar_codigo(salida: Path) -> None:

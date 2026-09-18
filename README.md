@@ -28,6 +28,8 @@ XInput** — incluidos juegos porteados que esperan un mando de Xbox 360 físico
 |---|---|
 | 🕹️ **Pad táctil completo** | 2 sticks analógicos, A/B/X/Y, LB/RB, gatillos analógicos LT/RT, cruceta 8 direcciones, START/BACK/GUIDE, L3/R3 |
 | 🎛️ **Botonera MIDI** | el mismo celular, con un toque, se convierte en una **botonera MIDI personalizable** (pads + faders) para manejar **Resolume** o **QLC+** en paralelo al juego |
+| 🎯 **MIDI learn** | en vez de tipear el número: armás el control en el panel y mandás la señal (mesa de luz, QLC+, Resolume) y queda aprendida |
+| 🕹️ **Joystick → MIDI** | mientras jugás, botones, gatillos y sticks también mandan MIDI (sticks/gatillos como CC continuos, botones como notas) |
 | 📱 **Sin instalar apps** | el celular solo abre una URL (QR). Funciona en iPhone y Android |
 | 🎯 **Mando virtual real** | ViGEmBus + XInput: el juego lo ve como un *Xbox 360 Controller for Windows* |
 | 🖥️ **Panel del operador** | QR grande, estado en vivo (sticks, gatillos, botones, latencia) y botón *Soltar todo* |
@@ -117,10 +119,13 @@ CELULAR (botonera MIDI) ──WebSocket──► server.py ──► puerto MIDI
 
 ### Puesta en marcha (una sola vez)
 
-1. Tener **loopMIDI** (https://www.tobias-erichsen.de/software/loopmidi.html)
-   — es gratis y crea los puertos MIDI virtuales en Windows. El `.bat` lo abre
-   solo si lo encuentra instalado; si no, avisa.
-2. Dejar un puerto creado (el nombre por defecto `loopMIDI Port` sirve).
+1. **loopMIDI** (https://www.tobias-erichsen.de/software/loopmidi.html) — gratis,
+   crea los puertos MIDI virtuales en Windows. En el **paquete portable ya viene el
+   instalador** (`drivers\loopMIDISetup*.zip`): el `.bat` lo instala solo la primera
+   vez (pide admin), **crea el puerto** `loopMIDI Port` y lo abre.
+2. Dejar **loopMIDI corriendo** (se abre solo): los puertos existen solo mientras la
+   aplicación está abierta. Si no hay puerto, el modo MIDI queda sin salida y la PC
+   igual funciona con el joystick.
 3. En **Resolume**: *Preferences → MIDI* → elegir `loopMIDI Port` como input, activar
    **MIDI map** y tocar en pantalla el control que quieras asignar; después apretás
    el botón en el celular.
@@ -147,7 +152,25 @@ Los **faders** mandan CC de 0 a 127 de forma continua mientras los arrastrás
 
 Vienen dos bancos de fábrica listos para mapear: **RESOLUME** (notas 36–51 + CC 7–10)
 y **QLC+** (notas 60–75 + CC 11–14). Se editan desde el panel de la PC
-(tarjeta *3 · MIDI*) y se guardan en `midi-mapa.json`.
+(tarjeta *3 · MIDI*) y se guardan en `midi-mapa.json`:
+
+```jsonc
+{
+  "version": 1,
+  "puerto": "loopMIDI Port",       // puerto virtual de salida
+  "joystick_activo": true,         // ¿el joystick manda MIDI mientras jugás?
+  "joystick": [                    // mapeo del mando -> MIDI
+    {"control": "a",  "tipo": "note", "num": 36, "canal": 1, "modo": "momento", "umbral": 0.6},
+    {"control": "rt", "tipo": "cc",   "num": 8,  "canal": 1, "modo": "momento", "invertir": false}
+  ],
+  "paginas": [                     // bancos de la botonera del celular
+    {"nombre": "RESOLUME",
+     "botones": [{"id": "r1", "etiqueta": "COL 1", "tipo": "note", "num": 36,
+                  "canal": 1, "modo": "momento", "color": "#ff5c7a"}],
+     "faders":  [{"id": "rf1", "etiqueta": "OPACIDAD", "tipo": "cc", "num": 7, "canal": 1}]}
+  ]
+}
+```
 
 Botón **SILENCIAR** (panic): manda *all notes off* en los 16 canales y apaga todo
 lo que haya quedado prendido. El servidor también lo hace solo cuando cerrás el
@@ -156,7 +179,55 @@ queda una luz o un clip colgado**.
 
 ---
 
-## 🖥️ Panel del operador
+### 🎯 MIDI learn (aprender el número en vez de tipearlo)
+
+En cada fila del mapeo hay un botón **🎯**. Lo apretás, el panel (y el celular)
+muestran *"aprendiendo: COL 5"* y quedan esperando la próxima señal MIDI:
+
+- **desde otro programa**: activá MIDI-mapping en Resolume o QLC+, tocá el control
+  en pantalla → la señal vuelve por el puerto virtual y el panel la captura;
+- **desde la mesa de luz / controlador físico**: movés el fader o tocás el pad y
+  listo, queda con ese número, canal y tipo;
+- **desde el celular**: apretás un pad y el control armado **copia** el número de
+  ese pad.
+
+Se guarda solo y el celular se actualiza. `cancelar` aborta el aprendizaje.
+
+> Para que funcione, el servidor abre el **puerto virtual como entrada**
+> (`loopMIDI Port 0`); el panel muestra su estado en la píldora *entrada (learn)*.
+
+### 🕹️ Joystick → MIDI (controlar el juego **y** las luces a la vez)
+
+Mientras jugás con el mando, cada control puede disparar MIDI en paralelo. Se
+configura en la tarjeta MIDI del panel: **switch de encendido** + tabla de mapeos.
+
+| Columna | Qué hace |
+|---|---|
+| **Control** | A, B, X, Y, LB, RB, START, BACK, L3, R3, cruceta, gatillos LT/RT, sticks (↔ ↕) |
+| **Tipo** | `note` (con umbral), `cc` (continuo 0-127) o `pc` |
+| **N° / Canal** | número MIDI y canal 1-16 |
+| **Modo** | `momento`, `toggle`, `disparo` (pulso corto), `fijo` |
+| **Umbral** | para gatillos/sticks: a partir de qué valor se considera "apretado" (0.05-0.95) |
+| **Inv.** | invierte el eje/gatillo |
+
+Ejemplos útiles:
+
+- **A/B/X/Y → notas** 36-39: disparar clips de Resolume mientras jugás.
+- **LT/RT → CC 7/8**: opacidad/velocidad continuas con los gatillos.
+- **Stick izquierdo ↔ → CC 9**: crossfader de Resolume manejado con el stick.
+- **Umbral alto + modo `disparo`**: un golpe de gatillo = un pulso, sin dejar nada prendido.
+
+El botón **preset** carga de una: sticks y gatillos como CC + A/B/X/Y/LB/RB como
+notas. Si el switch está apagado, el joystick solo maneja el juego (no manda MIDI).
+
+### 🔌 El puerto virtual (loopMIDI)
+
+El `.bat` se encarga: si no hay puerto MIDI, **instala loopMIDI** desde
+`drivers\loopMIDISetup*.zip` (pide admin una vez), **crea el puerto** `loopMIDI Port`
+en la configuración del usuario y **abre loopMIDI**, que tiene que quedar corriendo
+(los puertos existen solo mientras la app está abierta).
+
+### 🎛️ Panel del operador
 
 En la PC del juego → `http://127.0.0.1:8790/`
 
@@ -198,7 +269,7 @@ server.py                HTTP + WebSocket + QR + panel + mando virtual + MIDI
 mando_virtual.py         mando Xbox 360 virtual (vgamepad/ViGEmBus): deadzone,
                          gatillos, botones, reconexion automatica
 midi_salida.py           salida MIDI (mido/rtmidi): notas, CC, panic, reconexion
-midi-mapa.json           mapeo de la botonera MIDI (bancos, botones, faders)
+midi-mapa.json           mapeo MIDI (bancos, botones, faders, joystick -> MIDI)
 requirements.txt         aiohttp, vgamepad, qrcode, mido, python-rtmidi
 web/
   index.html             panel del operador (QR + estado + editor de mapeo MIDI)
@@ -212,7 +283,7 @@ tools/
   prueba_midi.py         prueba MIDI punta a punta (loopback por el puerto virtual)
   midi_listo.py          asegura que haya un puerto MIDI virtual
   empaquetar_portable.py armado del paquete portable
-drivers/                 (solo en el portable) instalador ViGEmBus
+drivers/                 (solo en el portable) instaladores ViGEmBus + loopMIDI
 runtime/                 (solo en el portable) Python embebido + dependencias
 ```
 
@@ -241,17 +312,22 @@ cliente (otro celular, un control MIDI, un script, un bot).
 {"t":"soltar"} | {"t":"probar"}                  // joystick
 {"t":"midi-probar"} | {"t":"midi-panic"}
 {"t":"midi-puerto","puerto":"loopMIDI Port"}     // elegir puerto MIDI
-{"t":"midi-mapa","mapa":{...}}                   // guardar el mapeo
+{"t":"midi-mapa","mapa":{...}}                   // guardar el mapeo (incluye joystick -> MIDI)
+{"t":"midi-learn","id":"r5"}                     // MIDI learn: capturar la próxima señal
+{"t":"midi-learn","id":null}                     // cancelar el aprendizaje
 
 // servidor -> panel (10 Hz)
 {"t":"estado","mando":true,"conectados":1,"senal_hace_ms":42,"modo":"midi",
  "midi":{"disponible":true,"puerto":"loopMIDI Port 1","mensajes":12,...},
+ "midi_in":{"disponible":true,"puerto":"loopMIDI Port 0",...},   // entrada (learn)
+ "aprender":"r5",                                                // control en learn o null
  "estado":{"ls":[0,0],"rs":[0,0],"lt":0,"rt":0,"b":{...}}}
 
 // servidor -> celular
 {"t":"hola","mapa":{...},"modo":"joy","toggles":{"r9":true}}
 {"t":"mapa","mapa":{...}}            // el mapeo cambió en el panel
 {"t":"midi-estado","id":"r9","on":true}   // estado de un botón toggle
+{"t":"aprender","id":"r5","etiqueta":"COL 5"}   // hay un control en MIDI learn (o id null)
 ```
 
 Botones del joystick: `a b x y lb rb start back guide l3 r3 up down left right`.
@@ -267,7 +343,7 @@ HTTP: `GET /api/midi` (estado + mapeo) · `POST /api/midi/puerto` ·
 .venv\Scripts\python.exe tools\prueba_completa.py          :: joystick: 15 pruebas
 .venv\Scripts\python.exe tools\prueba_completa.py --forzar :: aunque haya otro celular conectado
 .venv\Scripts\python.exe tools\verificar_xinput.py --seguir :: monitor en vivo
-.venv\Scripts\python.exe tools\prueba_midi.py              :: MIDI: 8 pruebas (loopback real)
+.venv\Scripts\python.exe tools\prueba_midi.py              :: MIDI: 15 pruebas (loopback real)
 .venv\Scripts\python.exe tools\midi_listo.py               :: ¿hay puerto MIDI listo?
 ```
 
@@ -349,7 +425,8 @@ No debería pasar: el servidor libera todo a los 3 s sin señal, al desconectars
 3. En Resolume/QLC+ hay que **activar el input** y mapear: el pad no adivina los
    controles, solo manda las notas/CC que definas en el mapeo.
 4. Verificá la cadena completa sin los programas:
-   `tools\prueba_midi.py` (escucha el puerto virtual y reporta 8/8).
+   `tools\prueba_midi.py` (escucha el puerto virtual y reporta 15/15:
+botones, faders, joystick->MIDI, MIDI learn y panic).
 
 **El driver no instala.**
 Corré `drivers\ViGEmBus_*.exe` a mano (como administrador). Si Windows pide

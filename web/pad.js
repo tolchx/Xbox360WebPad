@@ -261,6 +261,22 @@
     }
   }
 
+  let aprenderEtq = null;
+
+  function pintarAprender(etiqueta) {
+    const el = $('#aprender');
+    if (etiqueta === aprenderEtq) return;
+    aprenderEtq = etiqueta;
+    if (etiqueta) {
+      el.hidden = false;
+      el.innerHTML = `🎯 <b>MIDI learn</b> · ${etiqueta}<br>` +
+                     '<span>tocá el control en Resolume/QLC+ o apretá un pad acá para copiar su número</span>';
+    } else {
+      el.hidden = true;
+      el.innerHTML = '';
+    }
+  }
+
   function infoMidi(datos) {
     const partes = [];
     if (datos && datos.puerto) partes.push(`puerto: ${datos.puerto}`);
@@ -327,6 +343,8 @@
           const el = $('#midi-botones').children[i];
           if (el) el.classList.toggle('on', !!m.on);
         }
+      } else if (m.t === 'aprender') {
+        pintarAprender(m.etiqueta || m.id);
       } else if (m.t === 'midi-estado-reset') {
         for (const k in toggles) delete toggles[k];
         pintarBotonera();

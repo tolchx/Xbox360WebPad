@@ -50,7 +50,7 @@ import qrcode.image.svg
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mando_virtual import BOTONES, MandoVirtual   # noqa: E402
-from midi_salida import SalidaMidi, puertos_salida   # noqa: E402
+from midi_salida import EntradaMidi, SalidaMidi, puertos_salida   # noqa: E402
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
 MAPA_PATH = Path(__file__).resolve().parent / "midi-mapa.json"
@@ -59,9 +59,23 @@ MAPA_POR_DEFECTO = {
     "version": 1,
     "puerto": "loopMIDI Port",
     "paginas": [{"nombre": "BOTONERA", "botones": [], "faders": []}],
+    "joystick_activo": False,
+    "joystick": [],
 }
 MODOS_BOTON = ("momento", "toggle", "disparo", "fijo")
 TIPOS_MIDI = ("note", "cc", "pc")
+CONTROLES_JOY = ("a", "b", "x", "y", "lb", "rb", "start", "back", "guide",
+                 "l3", "r3", "up", "down", "left", "right",
+                 "lt", "rt", "ls_x", "ls_y", "rs_x", "rs_y")
+CONTROLES_ANALOGOS = ("lt", "rt", "ls_x", "ls_y", "rs_x", "rs_y")
+
+
+def _flotante(valor, defecto: float, lo: float, hi: float) -> float:
+    try:
+        n = float(valor)
+    except (TypeError, ValueError):
+        return defecto
+    return lo if n < lo else hi if n > hi else n
 
 
 def _color_ok(valor: str) -> str:
@@ -109,9 +123,32 @@ def sanear_mapa(datos: dict) -> dict:
                         "botones": botones[:24], "faders": faders[:10]})
     if not paginas:
         return dict(MAPA_POR_DEFECTO)
+
+    joystick = []
+    for j, it in enumerate(datos.get("joystick") or []):
+        if not isinstance(it, dict):
+            continue
+        control = str(it.get("control") or "a").lower()
+        if control not in CONTROLES_JOY:
+            continue
+        tipo = str(it.get("tipo", "note")).lower()
+        modo = str(it.get("modo", "momento")).lower()
+        joystick.append({
+            "id": str(it.get("id") or f"j{j+1}")[:24],
+            "control": control,
+            "tipo": tipo if tipo in TIPOS_MIDI else "note",
+            "num": max(0, min(127, int(it.get("num", 36) or 0))),
+            "canal": max(1, min(16, int(it.get("canal", 1) or 1))),
+            "modo": modo if modo in MODOS_BOTON else "momento",
+            "umbral": _flotante(it.get("umbral"), 0.6, 0.05, 0.95),
+            "invertir": bool(it.get("invertir")),
+        })
+
     return {"version": 1,
             "puerto": str(datos.get("puerto") or "loopMIDI Port")[:64],
-            "paginas": paginas[:6]}
+            "paginas": paginas[:6],
+            "joystick_activo": bool(datos.get("joystick_activo", True)) and bool(joystick),
+            "joystick": joystick[:32]}
 
 
 def cargar_mapa() -> dict:
@@ -233,8 +270,13 @@ class App:
         self.arranque = time.monotonic()
         self.mapa = cargar_mapa()
         self.midi = SalidaMidi(self.mapa.get("puerto"), verbose=True)
+        self.midi_in = EntradaMidi(self.mapa.get("puerto"), verbose=True)
         self.modo = "joy"                   # joy | midi (informativo: lo elige el celular)
         self.toggles: dict[str, bool] = {}  # estado de los botones MIDI en modo toggle
+        self.aprender: dict | None = None   # {"id":..., "desde":ts} control en MIDI learn
+        self.toggles_joy: dict[str, bool] = {}   # estado de los mapeos joystick->MIDI en toggle
+        self.joy_prev: dict[str, float] = {}     # ultimo valor de cada control del joystick
+        self.joy_notas: set[str] = set()         # items de joystick con nota encendida
 
     # ── estado que se manda al panel ───────────────────────────────────────
     def instantanea(self) -> dict:
@@ -257,7 +299,11 @@ class App:
             "uptime_s": round(ahora - self.arranque, 1),
             "modo": self.modo,
             "midi": self.midi.estado(),
+            "midi_in": self.midi_in.estado(),
+            "aprender": self.aprender and self.aprender.get("id"),
             "toggles": dict(self.toggles),
+            "joystick": {"activo": self.mapa.get("joystick_activo", False),
+                         "items": len(self.mapa.get("joystick") or [])},
         }
 
     async def difundir_paneles(self, msg: dict | None = None) -> None:
@@ -364,6 +410,13 @@ class App:
                         elif t == "midi-panic":
                             self.silenciar_midi("pedido del panel")
                             await ws.send_str(json.dumps({"t": "midi-estado-reset"}))
+                        elif t == "midi-learn":
+                            ok = self.armar_aprendizaje(m.get("id"))
+                            await ws.send_str(json.dumps({
+                                "t": "midi-learn-ok", "ok": ok,
+                                "id": self.aprender and self.aprender.get("id")}))
+                            await self.avisar_aprender()
+                            await self.difundir_paneles()
                         elif t == "midi-puerto":
                             ok = self.cambiar_puerto_midi(m.get("puerto") or "")
                             await ws.send_str(json.dumps({"t": "midi-puerto-ok", "ok": ok,
@@ -373,6 +426,9 @@ class App:
                             guardar_mapa(self.mapa)
                             self.midi.nombre_pedido = self.mapa.get("puerto", "")
                             self.midi.reconectar(forzar=True)
+                            self.midi_in.nombre_pedido = self.mapa.get("puerto", "")
+                            self.midi_in.reconectar(forzar=True)
+                            self.reiniciar_joystick_midi()
                             await self.avisar_mapa()
                             await ws.send_str(json.dumps({"t": "midi-mapa-ok",
                                                           "mapa": self.mapa}))
@@ -440,6 +496,12 @@ class App:
         tipo = ctrl.get("tipo", "note")
         num, canal = ctrl["num"], ctrl.get("canal", 1)
 
+        # MIDI learn: apretar un pad del celular copia su numero al control armado
+        if self.aprender and accion == "press":
+            if ident != self.aprender.get("id"):
+                await self.aplicar_aprendizaje({"tipo": tipo, "num": num, "canal": canal})
+            return
+
         if es_fader:                                   # fader: CC continuo
             self.midi.cc(num, m.get("valor", 0), canal)
             return
@@ -467,6 +529,7 @@ class App:
     def silenciar_midi(self, motivo: str = "") -> None:
         self.midi.panic()
         self.toggles.clear()
+        self.toggles_joy.clear()
         if motivo:
             print(f"[midi] panic ({motivo})", flush=True)
 
@@ -488,6 +551,155 @@ class App:
         datos = json.dumps({"t": "mapa", "mapa": self.mapa,
                             "midi": self.midi.disponible,
                             "puerto_midi": self.midi.nombre_abierto})
+        for ws in list(self.pads):
+            try:
+                await ws.send_str(datos)
+            except Exception:
+                pass
+
+    # ── MIDI learn ─────────────────────────────────────────────────────────
+    def armar_aprendizaje(self, ident: str | None) -> bool:
+        if not ident:
+            self.aprender = None
+            return True
+        ctrl, _ = self.buscar_control(ident)
+        if ctrl is None:
+            return False
+        self.aprender = {"id": ident, "desde": time.monotonic()}
+        nombre = ctrl.get("etiqueta") or ident
+        print(f"[midi] aprendiendo: {nombre} (mandá la señal desde la mesa/QLC+/Resolume)", flush=True)
+        return True
+
+    async def aplicar_aprendizaje(self, m: dict) -> None:
+        """Asigna la señal capturada al control armado."""
+        if not self.aprender:
+            return
+        ctrl, _ = self.buscar_control(self.aprender["id"])
+        self.aprender = None
+        if ctrl is None:
+            return
+        ctrl["tipo"] = m["tipo"]
+        ctrl["num"] = int(m["num"])
+        ctrl["canal"] = int(m.get("canal") or 1)
+        guardar_mapa(self.mapa)
+        nombre = ctrl.get("etiqueta") or ctrl.get("id")
+        print(f"[midi] aprendido: {nombre} -> {ctrl['tipo']} {ctrl['num']} ch {ctrl['canal']}",
+              flush=True)
+        await self.avisar_mapa()
+        await self.avisar_aprender()
+        await self.difundir_paneles()
+
+    async def tarea_aprender(self) -> None:
+        """Escucha el puerto MIDI de entrada y captura la señal para MIDI learn."""
+        while True:
+            await asyncio.sleep(0.05)
+            if not self.midi_in.disponible:
+                self.midi_in.reconectar()
+            if self.aprender and time.monotonic() - self.aprender["desde"] > 60:
+                self.aprender = None            # se cancela solo a los 60 s
+                await self.difundir_paneles()
+            mensajes = self.midi_in.leer()
+            if not mensajes:
+                continue
+            if self.aprender:
+                for m in mensajes:
+                    if m["tipo"] == "note" and not m.get("valor"):
+                        continue                # ignora los note-off
+                    if self.midi.eco_reciente(m):
+                        # loopMIDI nos devuelve lo que mandamos nosotros: nuestro
+                        # propio panic (CC120) no es una señal del usuario.
+                        continue
+                    await self.aplicar_aprendizaje(m)
+                    break
+
+    # ── joystick -> MIDI ───────────────────────────────────────────────────
+    @staticmethod
+    def valor_joystick(est: dict, control: str) -> float:
+        """Valor 0..1 de un control del joystick (para mapearlo a MIDI)."""
+        if control in ("lt", "rt"):
+            return float(est.get(control) or 0.0)
+        if control in ("ls_x", "rs_x"):
+            return (float(est["ls"][0] if control == "ls_x" else est["rs"][0]) + 1.0) / 2.0
+        if control in ("ls_y", "rs_y"):
+            # el pad manda Y en coordenadas de pantalla (arriba = -1): lo damos vuelta
+            y = float(est["ls"][1] if control == "ls_y" else est["rs"][1])
+            return (1.0 - y) / 2.0
+        return 1.0 if (est.get("b") or {}).get(control) else 0.0
+
+    async def _auto_off_joy(self, clave: str, tipo: str, num: int, canal: int) -> None:
+        await asyncio.sleep(0.14)
+        if not self.toggles_joy.get(clave, False):
+            self.enviar_ctrl(tipo, num, 0, canal)
+
+    async def tarea_joystick_midi(self) -> None:
+        """Manda MIDI segun el estado del joystick (botones y ejes mapeados)."""
+        while True:
+            await asyncio.sleep(0.016)               # ~60 Hz
+            items = self.mapa.get("joystick") or []
+            if not items or not self.mapa.get("joystick_activo"):
+                continue
+            if self.aprender:
+                continue                             # configurando: no ensuciar el learn
+            if not self.midi.disponible:
+                continue
+            est = self.mando.estado
+            for it in items:
+                clave = it["id"]
+                valor = self.valor_joystick(est, it["control"])
+                if it.get("invertir"):
+                    valor = 1.0 - valor
+                tipo, num, canal = it["tipo"], it["num"], it["canal"]
+                previo = self.joy_prev.get(clave)
+                self.joy_prev[clave] = valor
+
+                if tipo == "cc":                     # continuo (ejes como fader)
+                    destino = int(round(valor * 127))
+                    if previo is None or abs(destino - int(round(previo * 127))) >= 2:
+                        self.midi.cc(num, destino, canal)
+                    continue
+
+                umbral = it.get("umbral", 0.6)
+                activo = valor > umbral
+                previo_activo = previo is not None and previo > umbral
+                modo = it.get("modo", "momento")
+
+                if modo == "toggle":
+                    if activo and not previo_activo:
+                        nuevo = not self.toggles_joy.get(clave, False)
+                        self.toggles_joy[clave] = nuevo
+                        self.enviar_ctrl(tipo, num, 127 if nuevo else 0, canal)
+                elif modo == "disparo":
+                    if activo and not previo_activo:
+                        self.enviar_ctrl(tipo, num, 127, canal)
+                        asyncio.create_task(self._auto_off_joy(clave, tipo, num, canal))
+                elif modo == "fijo":
+                    if activo and not previo_activo:
+                        self.enviar_ctrl(tipo, num, 127, canal)
+                elif activo != previo_activo:        # momento
+                    self.enviar_ctrl(tipo, num, 127 if activo else 0, canal)
+
+    def reiniciar_joystick_midi(self) -> None:
+        """Al cambiar el mapeo del joystick: apagar lo que quedo prendido."""
+        for it in self.mapa.get("joystick") or []:
+            if it["tipo"] != "cc" and self.toggles_joy.get(it["id"]):
+                self.enviar_ctrl(it["tipo"], it["num"], 0, it["canal"])
+        self.toggles_joy.clear()
+        self.joy_prev.clear()
+        self.joy_notas.clear()
+
+    def etiqueta_control(self, ident: str | None) -> str:
+        if not ident:
+            return ""
+        ctrl, _ = self.buscar_control(ident)
+        if ctrl is None:
+            return ident
+        return str(ctrl.get("etiqueta") or ident)
+
+    async def avisar_aprender(self) -> None:
+        """Cuenta a los celulares que hay un control en MIDI learn."""
+        datos = json.dumps({"t": "aprender",
+                            "id": self.aprender and self.aprender.get("id"),
+                            "etiqueta": self.etiqueta_control(self.aprender and self.aprender.get("id"))})
         for ws in list(self.pads):
             try:
                 await ws.send_str(datos)
@@ -581,8 +793,13 @@ class App:
 
     # ── MIDI (HTTP) ────────────────────────────────────────────────────────
     async def api_midi(self, request: web.Request) -> web.StreamResponse:
-        return web.json_response({"midi": self.midi.estado(), "mapa": self.mapa,
-                                  "modo": self.modo, "toggles": dict(self.toggles)})
+        return web.json_response({"midi": self.midi.estado(),
+                                  "midi_in": self.midi_in.estado(),
+                                  "mapa": self.mapa,
+                                  "modo": self.modo,
+                                  "aprender": self.aprender and self.aprender.get("id"),
+                                  "joystick_activo": self.mapa.get("joystick_activo", False),
+                                  "toggles": dict(self.toggles)})
 
     async def _cuerpo_json(self, request: web.Request) -> dict:
         try:
@@ -600,10 +817,19 @@ class App:
         datos = await self._cuerpo_json(request)
         self.mapa = sanear_mapa(datos.get("mapa") or datos)
         guardar_mapa(self.mapa)
-        self.midi.nombre_pedido = self.mapa.get("puerto", "")
-        self.midi.reconectar(forzar=True)
+        for salida in (self.midi, self.midi_in):
+            salida.nombre_pedido = self.mapa.get("puerto", "")
+            salida.reconectar(forzar=True)
+        self.reiniciar_joystick_midi()
         await self.avisar_mapa()
         return web.json_response({"ok": True, "mapa": self.mapa})
+
+    async def api_midi_learn(self, request: web.Request) -> web.StreamResponse:
+        datos = await self._cuerpo_json(request)
+        ok = self.armar_aprendizaje(datos.get("id"))
+        await self.avisar_aprender()
+        await self.difundir_paneles()
+        return web.json_response({"ok": ok, "aprender": self.aprender and self.aprender.get("id")})
 
     async def api_midi_probar(self, request: web.Request) -> web.StreamResponse:
         await self.probar_midi()
@@ -620,8 +846,11 @@ def construir_app(mando: MandoVirtual, puerto: int, timeout_pad: float) -> web.A
     @web.middleware
     async def sin_cache(request, handler):
         resp = await handler(request)
-        if isinstance(resp, web.FileResponse):
-            resp.headers["cache-control"] = "no-cache"
+        # El celular guarda pad.js/pad.css en cache y sigue usando la version vieja
+        # despues de actualizar el sistema: en esta LAN no queremos cache de nada.
+        if request.path.startswith("/static/") or isinstance(resp, web.FileResponse):
+            resp.headers["cache-control"] = "no-store, must-revalidate"
+            resp.headers.pop("expires", None)
         return resp
 
     app = web.Application(middlewares=[sin_cache])
@@ -638,6 +867,7 @@ def construir_app(mando: MandoVirtual, puerto: int, timeout_pad: float) -> web.A
     app.router.add_post("/api/midi/mapa", app_estado.api_midi_mapa)
     app.router.add_post("/api/midi/probar", app_estado.api_midi_probar)
     app.router.add_post("/api/midi/panic", app_estado.api_midi_panic)
+    app.router.add_post("/api/midi/learn", app_estado.api_midi_learn)
     app.router.add_get("/ws", app_estado.ws)
     app.router.add_static("/static", WEB_DIR, show_index=False)
 
@@ -662,6 +892,8 @@ def construir_app(mando: MandoVirtual, puerto: int, timeout_pad: float) -> web.A
             asyncio.create_task(app_estado.tarea_latido()),
             asyncio.create_task(app_estado.tarea_guardian()),
             asyncio.create_task(app_estado.tarea_paneles()),
+            asyncio.create_task(app_estado.tarea_aprender()),
+            asyncio.create_task(app_estado.tarea_joystick_midi()),
         ]
 
     async def cierre(app: web.Application) -> None:
@@ -672,6 +904,7 @@ def construir_app(mando: MandoVirtual, puerto: int, timeout_pad: float) -> web.A
         mando.cerrar()
         try:
             app["estado"].midi.cerrar()
+            app["estado"].midi_in.cerrar()
         except Exception:
             pass
 
@@ -731,6 +964,9 @@ def main() -> int:
             print("                        abri loopMIDI (o elegi el puerto en el panel)")
             if est_midi["salidas"]:
                 print(f"                        salidas disponibles: {', '.join(est_midi['salidas'])}")
+        est_entrada = app["estado"].midi_in.estado()
+        if est_entrada["disponible"]:
+            print(f"   MIDI learn (entrada): {est_entrada['puerto']}")
         print("")
         if not mando.disponible:
             print(f"  ATENCION: el mando virtual no esta activo ({mando.error})")

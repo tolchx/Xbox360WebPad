@@ -41,6 +41,15 @@ def elegir_entrada() -> str | None:
     return entradas[0] if entradas else None
 
 
+def puerto_salida_virtual() -> str | None:
+    """Salida del mismo puerto virtual (para inyectar señales en el MIDI learn)."""
+    salidas = mido.get_output_names()
+    for nombre in salidas:
+        if "loopmidi" in nombre.lower():
+            return nombre
+    return salidas[0] if salidas else None
+
+
 def elegir_control(mapa: dict, **cond) -> dict | None:
     for pag in mapa.get("paginas", []):
         for b in pag.get("botones", []):
@@ -211,7 +220,105 @@ async def main() -> int:
                 await chequear(f"fader {fader['id']} -> CC {fader['num']}",
                                f"cc {fader['num']}=99")
 
+            # ── joystick -> MIDI ─────────────────────────────────────────
+            async def restaurar(etiqueta: str = "mapeo original restaurado") -> None:
+                nonlocal ok, fallos
+                async with sesion.post(f"{args.http}/api/midi/mapa",
+                                       json={"mapa": mapa}) as r:
+                    await r.json()
+                async with sesion.get(f"{args.http}/api/midi") as r:
+                    vuelto = (await r.json())["mapa"]
+                if (not vuelto.get("joystick")
+                        and vuelto["paginas"][0]["botones"][0]["num"]
+                        == mapa["paginas"][0]["botones"][0]["num"]):
+                    ok += 1
+                    print(f"{etiqueta:<36} {'OK':<10} sin cambios permanentes")
+                else:
+                    fallos += 1
+                    print(f"{etiqueta:<36} {'FALLA':<10} revisar midi-mapa.json")
+
+            mapa_prueba = json.loads(json.dumps(mapa))
+            mapa_prueba["joystick_activo"] = True
+            mapa_prueba["joystick"] = [
+                {"id": "jtest1", "control": "a", "tipo": "note", "num": 40, "canal": 1,
+                 "modo": "momento", "umbral": 0.5, "invertir": False},
+                {"id": "jtest2", "control": "rt", "tipo": "cc", "num": 20, "canal": 1,
+                 "modo": "momento", "umbral": 0.6, "invertir": False},
+                {"id": "jtest3", "control": "ls_x", "tipo": "cc", "num": 21, "canal": 1,
+                 "modo": "momento", "umbral": 0.6, "invertir": False},
+            ]
+            async with sesion.post(f"{args.http}/api/midi/mapa",
+                                   json={"mapa": mapa_prueba}) as r:
+                await r.json()
+            await asyncio.sleep(0.3)
+            await ws.send_str(json.dumps({"t": "modo", "modo": "joy"}))
+            await asyncio.sleep(0.3)
+            await escucha.limpiar()
+
+            await ws.send_str(json.dumps({"t": "in", "b": {"a": True}}))
+            await chequear("joystick: A -> nota 40", "note_on n=40", espera=0.5)
+            await ws.send_str(json.dumps({"t": "in", "b": {"a": False}}))
+            await chequear("joystick: soltar A -> note off", "note_off n=40", espera=0.5)
+
+            await ws.send_str(json.dumps({"t": "in", "rt": 1.0}))
+            await chequear("joystick: gatillo RT -> CC 20 al maximo", "cc 20=127", espera=0.5)
+            await ws.send_str(json.dumps({"t": "in", "ls": [0.9, 0.0]}))
+            recibidos = [describir(m) for m in await escucha.recoger(0.5)]
+            valores = [int(r.split("=")[1].split(" ")[0])
+                       for r in recibidos if r.startswith("cc 21=")]
+            if valores and max(valores) >= 100:
+                ok += 1
+                print(f"{'joystick: stick izq -> CC 21':<36} {'OK':<10} llegó {max(valores)}")
+            else:
+                fallos += 1
+                print(f"{'joystick: stick izq -> CC 21':<36} {'FALLA':<10} {recibidos or '(nada)'}")
+            await ws.send_str(json.dumps({"t": "in", "b": {"a": False}, "rt": 0, "ls": [0, 0]}))
+            await asyncio.sleep(0.3)
+            await restaurar("joystick sin cambios permanentes")
+
+            # ── MIDI learn ───────────────────────────────────────────────
+            # 1) el eco de lo que manda el propio server (el panic CC120) NO se aprende
+            await sesion.post(f"{args.http}/api/midi/learn", json={"id": "r1"})
+            await asyncio.sleep(0.3)
+            await sesion.post(f"{args.http}/api/midi/panic")
+            await asyncio.sleep(0.8)
+            async with sesion.get(f"{args.http}/api/midi") as r:
+                sigue = (await r.json()).get("aprender")
+            if sigue == "r1":
+                ok += 1
+                print(f"{'learn: ignora el eco del panic':<36} {'OK':<10} sigue esperando")
+            else:
+                fallos += 1
+                print(f"{'learn: ignora el eco del panic':<36} {'FALLA':<10} capturó el eco ({sigue})")
+
+            original_r1 = json.loads(json.dumps(mapa_prueba["paginas"][0]["botones"][0]))
+            async with sesion.post(f"{args.http}/api/midi/learn",
+                                   json={"id": original_r1["id"]}) as r:
+                armado = (await r.json()).get("ok")
+            await asyncio.sleep(0.2)
+            # mandamos una señal MIDI "desde afuera" (como si fuera la mesa de luz)
+            with mido.open_output(puerto_salida_virtual()) as salida_aux:
+                salida_aux.send(mido.Message("note_on", note=77, velocity=110, channel=2))
+                await asyncio.sleep(0.8)
+            async with sesion.get(f"{args.http}/api/midi") as r:
+                mapa_nuevo = (await r.json())["mapa"]
+            boton = mapa_nuevo["paginas"][0]["botones"][0]
+            if armado and boton["num"] == 77 and boton["canal"] == 3 and boton["tipo"] == "note":
+                ok += 1
+                print(f"{'MIDI learn desde el puerto':<36} {'OK':<10} "
+                      f"{original_r1['etiqueta']}: {original_r1['num']} -> nota 77 ch 3")
+            else:
+                fallos += 1
+                print(f"{'MIDI learn desde el puerto':<36} {'FALLA':<10} "
+                      f"quedó {boton['tipo']} {boton['num']} ch {boton['canal']}")
+
+            # restaurar el mapeo original
+            await restaurar("lear n sin cambios permanentes")
+
             # vuelta a modo joystick: tiene que mandar el panic
+            await ws.send_str(json.dumps({"t": "modo", "modo": "midi"}))
+            await asyncio.sleep(0.3)
+            await escucha.limpiar()
             await ws.send_str(json.dumps({"t": "modo", "modo": "joy"}))
             recibidos = [describir(m) for m in await escucha.recoger(0.5)]
             if any("cc 123=" in r or "cc 120=" in r for r in recibidos):

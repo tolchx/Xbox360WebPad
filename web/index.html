@@ -103,6 +103,11 @@
   .midi-sub b{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);}
   .midi-sub .mini{padding:6px 11px;border-radius:9px;background:rgba(255,255,255,.08);
     border:1px solid var(--line);color:var(--txt);font-size:12px;font-weight:650;cursor:pointer;}
+  .chk{display:flex;align-items:center;gap:8px;font-size:13px;color:var(--txt);cursor:pointer;}
+  .chk input{width:16px;height:16px;accent-color:#8affc1;}
+  .midi-tabla .aprender{padding:6px 9px;border-radius:9px;background:rgba(138,255,193,.12);
+    border:1px solid rgba(138,255,193,.35);color:#d6ffe9;font-size:13px;cursor:pointer;}
+  .midi-tabla .aprender.on{background:rgba(138,255,193,.35);color:#0a0a0f;font-weight:800;}
 </style>
 </head>
 <body>
@@ -180,6 +185,7 @@
     <h2>3 · MIDI — luces y video (Resolume · QLC+)</h2>
     <div class="pills" style="margin-bottom:14px">
       <div class="pill">puerto <b id="vMidi">—</b></div>
+      <div class="pill">entrada (learn) <b id="vMidiIn">—</b></div>
       <div class="pill">mensajes <b id="vMidiMsgs">0</b></div>
       <div class="pill">último <b id="vMidiUlt">—</b></div>
       <div class="pill">modo del celular <b id="vModo">joystick</b></div>
@@ -194,6 +200,15 @@
       <button class="btn-acc" id="midiGuardar">💾 Guardar mapeo</button>
     </div>
     <div class="aviso" id="midiAviso" style="display:none"></div>
+    <div class="aviso ok" id="aprenderAviso" style="display:none"></div>
+
+    <div class="midi-sub" style="margin-top:18px">
+      <b>JOYSTICK → MIDI</b>
+      <label class="chk"><input type="checkbox" id="joyActivo"> mandar MIDI mientras jugás el juego</label>
+      <button class="mini" id="joyPreset">preset: sticks como CC + A/B/X/Y notas</button>
+      <button class="mini" id="joyAdd">+ mapeo</button>
+    </div>
+    <div class="midi-tabla" id="joyTabla"></div>
 
     <div class="bancos" id="bancosMidi"></div>
     <div class="midi-tabla" id="midiTabla"></div>
@@ -305,14 +320,48 @@
       av.style.display = 'none';
     }
 
-    if (d.midi) pintarMidi(d.midi, d.modo);
+    if (d.midi) pintarMidi(d.midi, d.modo, d.midi_in, d.aprender);
   }
 
   /* ══════════════════ MIDI ══════════════════ */
-  let mapa = null, bancoEd = 0;
+  let mapa = null, bancoEd = 0, aprenderPintado = undefined;
 
-  function pintarMidi(m, modo) {
+  function buscarEnMapa(ident) {
+    if (!mapa || !ident) return null;
+    for (const p of mapa.paginas || []) {
+      for (const c of (p.botones || []).concat(p.faders || [])) if (c.id === ident) return c;
+    }
+    for (const j of mapa.joystick || []) if (j.id === ident) return j;
+    return null;
+  }
+
+  function pintarAprender(aprender) {
+    document.querySelectorAll('[data-learn]').forEach(b => {
+      b.classList.toggle('on', b.dataset.learn === aprender);
+    });
+    if (aprender === aprenderPintado) return;      // no rearmar el HTML 10 veces por segundo
+    aprenderPintado = aprender;
+    const av = $('#aprenderAviso');
+    if (aprender) {
+      const c = buscarEnMapa(aprender);
+      av.style.display = '';
+      av.innerHTML = `🎯 <b>Aprendiendo</b> → <b>${c ? (c.etiqueta || aprender) : aprender}</b>.
+        Tocá el control en pantalla de Resolume/QLC+, mandá la señal desde la mesa,
+        o apretá un pad del celular para copiar su número.
+        <button class="mini" id="learnCancelar">cancelar</button>`;
+      const b = $('#learnCancelar');
+      if (b) b.onclick = () => { enviar({ t:'midi-learn', id:null }); };
+    } else {
+      av.style.display = 'none';
+    }
+  }
+
+  function pintarMidi(m, modo, entrada, aprender) {
     $('#vMidi').textContent = m.disponible ? (m.puerto || 'abierto') : 'sin puerto';
+    if (entrada) {
+      $('#vMidiIn').textContent = entrada.disponible ? (entrada.puerto || 'ok')
+                                                     : 'sin entrada';
+    }
     $('#vMidiMsgs').textContent = m.mensajes;
     $('#vMidiUlt').textContent = m.ultimo ? `${m.ultimo.tipo} · ${m.ultimo.dato}` : '—';
     $('#vModo').textContent = (modo === 'midi') ? 'MIDI' : 'joystick';
@@ -345,6 +394,7 @@
         sel.appendChild(o);
       }
     }
+    pintarAprender(aprender);
   }
 
   async function cargarMapa() {
@@ -352,9 +402,19 @@
       const r = await fetch('/api/midi', { cache: 'no-store' });
       const d = await r.json();
       mapa = d.mapa;
-      pintarMidi(d.midi, d.modo);
+      pintarMidi(d.midi, d.modo, d.midi_in, d.aprender);
       pintarEditor();
     } catch (e) { /* se reintenta al guardar */ }
+  }
+
+  function botonAprender(ident) {
+    const b = document.createElement('button');
+    b.className = 'aprender';
+    b.dataset.learn = ident;
+    b.textContent = '🎯';
+    b.title = 'MIDI learn: aprender la próxima señal';
+    b.onclick = () => enviar({ t:'midi-learn', id: ident });
+    return b;
   }
 
   function campo(valor, tipo, alCambiar, extra = {}) {
@@ -452,15 +512,17 @@
       tr.appendChild(celda(campo(b.canal, 'number', v => { b.canal = +v; }, { min: 1, max: 16, clase: 'num' })));
       tr.appendChild(celda(selector(['momento', 'toggle', 'disparo', 'fijo'], b.modo, v => { b.modo = v; })));
       tr.appendChild(celda(campo(b.color || '#7aa2ff', 'color', v => { b.color = v; })));
+      const tdl = document.createElement('td');
+      tdl.appendChild(botonAprender(b.id)); tr.appendChild(tdl);
       const td = document.createElement('td');
       const x = document.createElement('button');
       x.className = 'borrar'; x.textContent = '✕';
-      x.onclick = () => { pag.botones.splice(j, 1); pintarEditor(); };
+      x.onclick = () => { pag.botones.splice(j, 1); guardarMapa(); };
       td.appendChild(x); tr.appendChild(td);
       return tr;
     });
     tabla.appendChild(tablaSimple('BOTONES', filasB,
-      ['Etiqueta', 'Tipo', 'N°', 'Canal', 'Modo', 'Color', ''],
+      ['Etiqueta', 'Tipo', 'N°', 'Canal', 'Modo', 'Color', '🎯', ''],
       { etiqueta: '+ botón', accion: () => {
         pag.botones.push({ id: 'b' + Date.now().toString(36), etiqueta: 'NUEVO', tipo: 'note',
                            num: 36, canal: 1, modo: 'momento', color: '#7aa2ff' });
@@ -474,20 +536,126 @@
       tr.appendChild(celda(selector(['cc', 'note', 'pc'], f.tipo, v => { f.tipo = v; })));
       tr.appendChild(celda(campo(f.num, 'number', v => { f.num = +v; }, { clase: 'num' })));
       tr.appendChild(celda(campo(f.canal, 'number', v => { f.canal = +v; }, { min: 1, max: 16, clase: 'num' })));
+      const tdl = document.createElement('td');
+      tdl.appendChild(botonAprender(f.id)); tr.appendChild(tdl);
       const td = document.createElement('td');
       const x = document.createElement('button');
       x.className = 'borrar'; x.textContent = '✕';
-      x.onclick = () => { pag.faders.splice(j, 1); pintarEditor(); };
+      x.onclick = () => { pag.faders.splice(j, 1); guardarMapa(); };
       td.appendChild(x); tr.appendChild(td);
       return tr;
     });
     tabla.appendChild(tablaSimple('FADERS', filasF,
-      ['Etiqueta', 'Tipo', 'N°', 'Canal', ''],
+      ['Etiqueta', 'Tipo', 'N°', 'Canal', '🎯', ''],
       { etiqueta: '+ fader', accion: () => {
         pag.faders.push({ id: 'f' + Date.now().toString(36), etiqueta: 'FADER', tipo: 'cc',
                           num: 7, canal: 1 });
-        pintarEditor();
+        guardarMapa();
       } }));
+
+    pintarJoy();
+  }
+
+  /* ── joystick → MIDI ──────────────────────────────────────────────────── */
+  const ETQ_CONTROL = {
+    a:'A', b:'B', x:'X', y:'Y', lb:'LB', rb:'RB', start:'START', back:'BACK', guide:'GUIDE',
+    l3:'L3 (click izq)', r3:'R3 (click der)', up:'CRUCETA ↑', down:'CRUCETA ↓',
+    left:'CRUCETA ←', right:'CRUCETA →', lt:'GATILLO LT', rt:'GATILLO RT',
+    ls_x:'STICK IZQ ↔', ls_y:'STICK IZQ ↕', rs_x:'STICK DER ↔', rs_y:'STICK DER ↕'
+  };
+
+  const PRESET_JOY = [
+    { control:'a',  tipo:'note', num:36, canal:1, modo:'momento' },
+    { control:'b',  tipo:'note', num:37, canal:1, modo:'momento' },
+    { control:'x',  tipo:'note', num:38, canal:1, modo:'momento' },
+    { control:'y',  tipo:'note', num:39, canal:1, modo:'momento' },
+    { control:'lb', tipo:'note', num:40, canal:1, modo:'momento' },
+    { control:'rb', tipo:'note', num:41, canal:1, modo:'momento' },
+    { control:'lt', tipo:'cc',   num:7,  canal:1, modo:'momento' },
+    { control:'rt', tipo:'cc',   num:8,  canal:1, modo:'momento' },
+    { control:'ls_x', tipo:'cc', num:9,  canal:1, modo:'momento' },
+    { control:'ls_y', tipo:'cc', num:10, canal:1, modo:'momento' },
+    { control:'rs_x', tipo:'cc', num:11, canal:1, modo:'momento' },
+    { control:'rs_y', tipo:'cc', num:12, canal:1, modo:'momento' }
+  ];
+
+  function selectorControl(valor, alCambiar) {
+    const sel = document.createElement('select');
+    for (const k of Object.keys(ETQ_CONTROL)) {
+      const o = document.createElement('option');
+      o.value = k; o.textContent = ETQ_CONTROL[k];
+      if (k === valor) o.selected = true;
+      sel.appendChild(o);
+    }
+    sel.onchange = () => alCambiar(sel.value);
+    return sel;
+  }
+
+  function casilla(valor, alCambiar) {
+    const el = document.createElement('input');
+    el.type = 'checkbox';
+    el.checked = !!valor;
+    el.style.width = '18px';
+    el.onchange = () => alCambiar(el.checked);
+    return el;
+  }
+
+  function pintarJoy() {
+    const cont = $('#joyTabla');
+    cont.innerHTML = '';
+    if (!mapa) return;
+    $('#joyActivo').checked = !!mapa.joystick_activo;
+    const items = mapa.joystick || [];
+
+    const filas = items.map((it, j) => {
+      const tr = document.createElement('tr');
+      tr.appendChild(celda(selectorControl(it.control, v => { it.control = v; })));
+      tr.appendChild(celda(selector(['note', 'cc', 'pc'], it.tipo, v => { it.tipo = v; })));
+      tr.appendChild(celda(campo(it.num, 'number', v => { it.num = +v; }, { clase: 'num' })));
+      tr.appendChild(celda(campo(it.canal, 'number', v => { it.canal = +v; }, { min:1, max:16, clase:'num' })));
+      tr.appendChild(celda(selector(['momento', 'toggle', 'disparo', 'fijo'], it.modo, v => { it.modo = v; })));
+      tr.appendChild(celda(campo(it.umbral ?? 0.6, 'number', v => { it.umbral = +v; },
+                                { min: 0.05, max: 0.95, clase: 'num' })));
+      tr.appendChild(celda(casilla(it.invertir, v => { it.invertir = v; })));
+      const tdl = document.createElement('td');
+      tdl.appendChild(botonAprender(it.id)); tr.appendChild(tdl);
+      const td = document.createElement('td');
+      const x = document.createElement('button');
+      x.className = 'borrar'; x.textContent = '✕';
+      x.onclick = () => { items.splice(j, 1); guardarMapa(); };
+      td.appendChild(x); tr.appendChild(td);
+      return tr;
+    });
+
+    cont.appendChild(tablaSimple('MAPEO DEL JOYSTICK', filas,
+      ['Control', 'Tipo', 'N°', 'Canal', 'Modo', 'Umbral', 'Inv.', '🎯', ''],
+      { etiqueta: '+ mapeo', accion: () => {
+        items.push({ id: 'j' + Date.now().toString(36), control: 'a', tipo: 'note', num: 36,
+                     canal: 1, modo: 'momento', umbral: 0.6, invertir: false });
+        guardarMapa();
+      } }));
+
+    if (!items.length) {
+      const n = document.createElement('div');
+      n.className = 'nota';
+      n.innerHTML = 'Sin mapeos: el joystick solo maneja el juego. Agregá uno, o usá el ' +
+                    '<b>preset</b> (sticks y gatillos como CC + A/B/X/Y como notas).';
+      cont.appendChild(n);
+    }
+  }
+
+  async function guardarMapa() {
+    try {
+      const r = await fetch('/api/midi/mapa', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mapa })
+      });
+      const d = await r.json();
+      if (d.mapa) mapa = d.mapa;
+      pintarEditor();
+      return true;
+    } catch { return false; }
   }
 
   function celda(hijo) {
@@ -500,7 +668,31 @@
     if (!mapa) return;
     mapa.paginas.push({ nombre: `BANCO ${mapa.paginas.length + 1}`, botones: [], faders: [] });
     bancoEd = mapa.paginas.length - 1;
-    pintarEditor();
+    guardarMapa();
+  };
+
+  $('#joyActivo').onchange = (e) => {
+    if (!mapa) return;
+    mapa.joystick_activo = e.target.checked;
+    guardarMapa();
+  };
+
+  $('#joyPreset').onclick = () => {
+    if (!mapa) return;
+    if ((mapa.joystick || []).length &&
+        !confirm('¿Reemplazar el mapeo del joystick por el preset?')) return;
+    mapa.joystick = PRESET_JOY.map((c, i) =>
+      Object.assign({ id: 'j' + (i + 1), umbral: 0.6, invertir: false }, c));
+    mapa.joystick_activo = true;
+    guardarMapa();
+  };
+
+  $('#joyAdd').onclick = () => {
+    if (!mapa) return;
+    mapa.joystick = mapa.joystick || [];
+    mapa.joystick.push({ id: 'j' + Date.now().toString(36), control: 'a', tipo: 'note', num: 36,
+                         canal: 1, modo: 'momento', umbral: 0.6, invertir: false });
+    guardarMapa();
   };
 
   $('#midiGuardar').onclick = async () => {

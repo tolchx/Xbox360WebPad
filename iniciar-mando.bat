@@ -191,6 +191,28 @@ rem ------------------------------------------------------------------
 :arrancar
 echo   [4/4] Revisando el puerto MIDI (para Resolume / QLC+)...
 "%PYEXE%" tools\midi_listo.py
+if not errorlevel 3 goto midi_listo
+
+rem  Falta loopMIDI: se instala desde drivers\ (driver MIDI virtual, pide admin)
+set "MIDIZIP="
+for %%F in ("drivers\loopMIDI*.zip") do if exist "%%~fF" set "MIDIZIP=%%~fF"
+if not defined MIDIZIP goto midi_sin_instalador
+
+echo         loopMIDI no esta instalado: instalando el driver MIDI virtual...
+powershell -NoProfile -Command "Expand-Archive -Force -LiteralPath '!MIDIZIP!' -DestinationPath 'tmp\loopmidi'"
+set "MIDISETUP="
+for %%F in ("tmp\loopmidi\loopMIDISetup*.exe") do if exist "%%~fF" set "MIDISETUP=%%~fF"
+if not defined MIDISETUP goto midi_sin_instalador
+
+powershell -NoProfile -Command "$p = Start-Process -Verb RunAs -PassThru -FilePath '!MIDISETUP!' -ArgumentList '/VERYSILENT','/SUPPRESSMSGBOXES','/NORESTART','/SP-'; try { Wait-Process -Id $p.Id -Timeout 180 -ErrorAction Stop } catch { }"
+"%PYEXE%" tools\midi_listo.py
+goto midi_listo
+
+:midi_sin_instalador
+echo         (no hay instalador de loopMIDI en drivers\ : el modo MIDI
+echo          queda sin puerto, el joystick funciona igual)
+
+:midi_listo
 echo.
 echo   Arrancando el servidor en el puerto %PUERTO%...
 echo.
