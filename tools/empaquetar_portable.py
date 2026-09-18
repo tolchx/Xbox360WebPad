@@ -40,6 +40,8 @@ VIGEM_API = "https://api.github.com/repos/nefarius/ViGEmBus/releases/latest"
 ARCHIVOS = [
     "server.py",
     "mando_virtual.py",
+    "midi_salida.py",
+    "midi-mapa.json",
     "requirements.txt",
     "iniciar-mando.bat",
     "README.md",
@@ -202,6 +204,10 @@ def main() -> int:
 
     # los zip/pip de armado no van al paquete final
     shutil.rmtree(salida / "tmp", ignore_errors=True)
+    for sobrante in salida.glob("*.zip"):          # que no se comprima a si mismo
+        log(f"quitando {sobrante.name} de la carpeta portable")
+        sobrante.unlink(missing_ok=True)
+    shutil.rmtree(salida / "__pycache__", ignore_errors=True)
 
     if not args.sin_zip:
         log("[5/5] Comprimiendo")

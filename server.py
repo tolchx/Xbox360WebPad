@@ -50,8 +50,84 @@ import qrcode.image.svg
 sys.path.insert(0, str(Path(__file__).resolve().parent))
 
 from mando_virtual import BOTONES, MandoVirtual   # noqa: E402
+from midi_salida import SalidaMidi, puertos_salida   # noqa: E402
 
 WEB_DIR = Path(__file__).resolve().parent / "web"
+MAPA_PATH = Path(__file__).resolve().parent / "midi-mapa.json"
+
+MAPA_POR_DEFECTO = {
+    "version": 1,
+    "puerto": "loopMIDI Port",
+    "paginas": [{"nombre": "BOTONERA", "botones": [], "faders": []}],
+}
+MODOS_BOTON = ("momento", "toggle", "disparo", "fijo")
+TIPOS_MIDI = ("note", "cc", "pc")
+
+
+def _color_ok(valor: str) -> str:
+    v = str(valor or "").strip()
+    if len(v) in (4, 7) and v.startswith("#") and all(c in "0123456789abcdefABCDEF" for c in v[1:]):
+        return v
+    return "#7aa2ff"
+
+
+def sanear_mapa(datos: dict) -> dict:
+    """Normaliza el mapeo que llega del panel (o de un archivo roto)."""
+    if not isinstance(datos, dict):
+        return dict(MAPA_POR_DEFECTO)
+    paginas = []
+    for i, pag in enumerate(datos.get("paginas") or []):
+        if not isinstance(pag, dict):
+            continue
+        botones, faders = [], []
+        for j, b in enumerate(pag.get("botones") or []):
+            if not isinstance(b, dict):
+                continue
+            tipo = str(b.get("tipo", "note")).lower()
+            modo = str(b.get("modo", "momento")).lower()
+            botones.append({
+                "id": str(b.get("id") or f"p{i+1}b{j+1}")[:24],
+                "etiqueta": str(b.get("etiqueta") or f"B{j+1}")[:20],
+                "tipo": tipo if tipo in TIPOS_MIDI else "note",
+                "num": max(0, min(127, int(b.get("num", 36) or 0))),
+                "canal": max(1, min(16, int(b.get("canal", 1) or 1))),
+                "modo": modo if modo in MODOS_BOTON else "momento",
+                "color": _color_ok(b.get("color")),
+            })
+        for j, f in enumerate(pag.get("faders") or []):
+            if not isinstance(f, dict):
+                continue
+            tipo = str(f.get("tipo", "cc")).lower()
+            faders.append({
+                "id": str(f.get("id") or f"p{i+1}f{j+1}")[:24],
+                "etiqueta": str(f.get("etiqueta") or f"F{j+1}")[:20],
+                "tipo": tipo if tipo in TIPOS_MIDI else "cc",
+                "num": max(0, min(127, int(f.get("num", 7) or 0))),
+                "canal": max(1, min(16, int(f.get("canal", 1) or 1))),
+            })
+        paginas.append({"nombre": str(pag.get("nombre") or f"BANCO {i+1}")[:20],
+                        "botones": botones[:24], "faders": faders[:10]})
+    if not paginas:
+        return dict(MAPA_POR_DEFECTO)
+    return {"version": 1,
+            "puerto": str(datos.get("puerto") or "loopMIDI Port")[:64],
+            "paginas": paginas[:6]}
+
+
+def cargar_mapa() -> dict:
+    try:
+        with open(MAPA_PATH, encoding="utf-8") as f:
+            return sanear_mapa(json.load(f))
+    except Exception:
+        return dict(MAPA_POR_DEFECTO)
+
+
+def guardar_mapa(mapa: dict) -> None:
+    try:
+        with open(MAPA_PATH, "w", encoding="utf-8") as f:
+            json.dump(mapa, f, ensure_ascii=False, indent=2)
+    except Exception as exc:                                # pragma: no cover
+        print(f"[midi] no pude guardar {MAPA_PATH.name}: {exc}", flush=True)
 
 # ── consola UTF-8 en Windows (para el QR de bloques) ───────────────────────
 for flujo in (sys.stdout, sys.stderr):
@@ -155,6 +231,10 @@ class App:
         self.mensajes_pad = 0
         self.ultimo_aviso = 0.0
         self.arranque = time.monotonic()
+        self.mapa = cargar_mapa()
+        self.midi = SalidaMidi(self.mapa.get("puerto"), verbose=True)
+        self.modo = "joy"                   # joy | midi (informativo: lo elige el celular)
+        self.toggles: dict[str, bool] = {}  # estado de los botones MIDI en modo toggle
 
     # ── estado que se manda al panel ───────────────────────────────────────
     def instantanea(self) -> dict:
@@ -175,6 +255,9 @@ class App:
             "estado": self.mando.estado,
             "botones": BOTONES,
             "uptime_s": round(ahora - self.arranque, 1),
+            "modo": self.modo,
+            "midi": self.midi.estado(),
+            "toggles": dict(self.toggles),
         }
 
     async def difundir_paneles(self, msg: dict | None = None) -> None:
@@ -226,6 +309,11 @@ class App:
                                 "mando": self.mando.disponible,
                                 "botones": BOTONES,
                                 "pad": True,
+                                "mapa": self.mapa,
+                                "modo": self.modo,
+                                "toggles": dict(self.toggles),
+                                "midi": self.midi.disponible,
+                                "puerto_midi": self.midi.nombre_abierto,
                             }))
                             print(f"[pad] {ip} conectado  ({len(self.pads)} celular/es)", flush=True)
                             await self.difundir_paneles()
@@ -244,6 +332,22 @@ class App:
                         elif m.get("t") == "soltar":
                             self.mando.neutro()
                             self.mando.latir(forzar=True)
+                        elif m.get("t") == "modo":
+                            modo = "midi" if m.get("modo") == "midi" else "joy"
+                            if modo != self.modo:
+                                self.modo = modo
+                                if modo == "midi":          # dejar el mando suelto
+                                    self.mando.neutro()
+                                    self.mando.latir(forzar=True)
+                                else:                       # apagar notas colgadas
+                                    self.silenciar_midi("vuelta a modo joystick")
+                                print(f"[modo] {modo}", flush=True)
+                                await self.difundir_paneles()
+                        elif m.get("t") == "midi":
+                            await self.toque_midi(m)
+                        elif m.get("t") == "midi-panic":
+                            self.silenciar_midi("pedido del celular")
+                            await ws.send_str(json.dumps({"t": "midi-estado-reset"}))
                         continue
 
                     # ── mensajes del panel (esta PC) ───────────────────────
@@ -255,6 +359,24 @@ class App:
                             print("[panel] soltar todo", flush=True)
                         elif t == "probar":
                             await self.pulso_prueba()
+                        elif t == "midi-probar":
+                            await self.probar_midi()
+                        elif t == "midi-panic":
+                            self.silenciar_midi("pedido del panel")
+                            await ws.send_str(json.dumps({"t": "midi-estado-reset"}))
+                        elif t == "midi-puerto":
+                            ok = self.cambiar_puerto_midi(m.get("puerto") or "")
+                            await ws.send_str(json.dumps({"t": "midi-puerto-ok", "ok": ok,
+                                                          "midi": self.midi.estado()}))
+                        elif t == "midi-mapa":
+                            self.mapa = sanear_mapa(m.get("mapa") or {})
+                            guardar_mapa(self.mapa)
+                            self.midi.nombre_pedido = self.mapa.get("puerto", "")
+                            self.midi.reconectar(forzar=True)
+                            await self.avisar_mapa()
+                            await ws.send_str(json.dumps({"t": "midi-mapa-ok",
+                                                          "mapa": self.mapa}))
+                            await self.difundir_paneles()
                         elif t == "salud":
                             await ws.send_str(json.dumps(self.instantanea()))
                         continue
@@ -269,9 +391,108 @@ class App:
                 if not self.pads:
                     self.mando.neutro()
                     self.mando.latir(forzar=True)
+                    self.silenciar_midi()          # no dejar notas colgadas
                     print("[mando] sin celulares: estado liberado", flush=True)
                 await self.difundir_paneles()
         return ws
+
+    # ── MIDI ───────────────────────────────────────────────────────────────
+    def buscar_control(self, ident: str) -> tuple[dict | None, bool]:
+        """Busca un boton o fader del mapeo por id. Devuelve (control, es_fader)."""
+        for pag in self.mapa.get("paginas", []):
+            for f in pag.get("faders", []):
+                if f.get("id") == ident:
+                    return f, True
+            for b in pag.get("botones", []):
+                if b.get("id") == ident:
+                    return b, False
+        return None, False
+
+    def enviar_ctrl(self, tipo: str, num: int, valor: int, canal: int) -> None:
+        if tipo == "cc":
+            self.midi.cc(num, valor, canal)
+        elif tipo == "pc":
+            self.midi.programa(num, canal)
+        else:
+            self.midi.nota(num, valor, canal)
+
+    async def avisar_botones(self, ident: str, encendido: bool) -> None:
+        """Cuenta a los celulares el estado de un boton toggle/disparo."""
+        for ws in list(self.pads):
+            try:
+                await ws.send_str(json.dumps({"t": "midi-estado", "id": ident,
+                                              "on": encendido}))
+            except Exception:
+                pass
+
+    async def _auto_off(self, tipo: str, num: int, canal: int, ident: str) -> None:
+        await asyncio.sleep(0.14)
+        if not self.toggles.get(ident, False):
+            self.enviar_ctrl(tipo, num, 0, canal)
+
+    async def toque_midi(self, m: dict) -> None:
+        """Un toque en la botonera MIDI del celular."""
+        accion = str(m.get("accion") or "").lower()
+        ident = str(m.get("id") or "")
+        ctrl, es_fader = self.buscar_control(ident)
+        if ctrl is None:
+            return
+        tipo = ctrl.get("tipo", "note")
+        num, canal = ctrl["num"], ctrl.get("canal", 1)
+
+        if es_fader:                                   # fader: CC continuo
+            self.midi.cc(num, m.get("valor", 0), canal)
+            return
+
+        modo = ctrl.get("modo", "momento")
+        if modo == "toggle":
+            if accion != "press":
+                return
+            nuevo = not self.toggles.get(ident, False)
+            self.toggles[ident] = nuevo
+            self.enviar_ctrl(tipo, num, 127 if nuevo else 0, canal)
+            await self.avisar_botones(ident, nuevo)
+            return
+
+        if accion == "press":
+            self.enviar_ctrl(tipo, num, 127, canal)
+            if modo == "disparo":
+                asyncio.create_task(self._auto_off(tipo, num, canal, ident))
+                await self.avisar_botones(ident, True)
+            return
+
+        if accion == "release" and modo == "momento":
+            self.enviar_ctrl(tipo, num, 0, canal)
+
+    def silenciar_midi(self, motivo: str = "") -> None:
+        self.midi.panic()
+        self.toggles.clear()
+        if motivo:
+            print(f"[midi] panic ({motivo})", flush=True)
+
+    def cambiar_puerto_midi(self, nombre: str) -> bool:
+        self.mapa["puerto"] = str(nombre or "")[:64]
+        guardar_mapa(self.mapa)
+        self.midi.nombre_pedido = self.mapa["puerto"]
+        return self.midi.reconectar(forzar=True)
+
+    async def probar_midi(self) -> None:
+        """Manda una nota corta para comprobar que el puerto MIDI responde."""
+        print("[midi] prueba: nota 60", flush=True)
+        self.midi.nota(60, 100, 1)
+        await asyncio.sleep(0.18)
+        self.midi.nota(60, 0, 1)
+
+    async def avisar_mapa(self) -> None:
+        """Manda el mapeo nuevo a los celulares conectados."""
+        datos = json.dumps({"t": "mapa", "mapa": self.mapa,
+                            "midi": self.midi.disponible,
+                            "puerto_midi": self.midi.nombre_abierto})
+        for ws in list(self.pads):
+            try:
+                await ws.send_str(datos)
+            except Exception:
+                pass
 
     async def pulso_prueba(self) -> None:
         """Aprieta A durante 250 ms para comprobar que el juego responde."""
@@ -320,6 +541,10 @@ class App:
                         print(f"[mando] {silencio:.1f}s sin señal del celular: liberado", flush=True)
                     self.ultimo_input = ahora
 
+            # puerto MIDI: si todavia no esta, se reintenta (por si abren loopMIDI despues)
+            if not self.midi.disponible:
+                self.midi.reconectar()
+
     async def tarea_paneles(self) -> None:
         """Manda el estado al panel ~10 veces por segundo."""
         while True:
@@ -354,6 +579,40 @@ class App:
         return web.json_response({"ok": True, "mando": self.mando.disponible,
                                   "error": self.mando.error, "pads": len(self.pads)})
 
+    # ── MIDI (HTTP) ────────────────────────────────────────────────────────
+    async def api_midi(self, request: web.Request) -> web.StreamResponse:
+        return web.json_response({"midi": self.midi.estado(), "mapa": self.mapa,
+                                  "modo": self.modo, "toggles": dict(self.toggles)})
+
+    async def _cuerpo_json(self, request: web.Request) -> dict:
+        try:
+            datos = await request.json()
+            return datos if isinstance(datos, dict) else {}
+        except Exception:
+            return {}
+
+    async def api_midi_puerto(self, request: web.Request) -> web.StreamResponse:
+        datos = await self._cuerpo_json(request)
+        ok = self.cambiar_puerto_midi(datos.get("puerto") or "")
+        return web.json_response({"ok": ok, "midi": self.midi.estado()})
+
+    async def api_midi_mapa(self, request: web.Request) -> web.StreamResponse:
+        datos = await self._cuerpo_json(request)
+        self.mapa = sanear_mapa(datos.get("mapa") or datos)
+        guardar_mapa(self.mapa)
+        self.midi.nombre_pedido = self.mapa.get("puerto", "")
+        self.midi.reconectar(forzar=True)
+        await self.avisar_mapa()
+        return web.json_response({"ok": True, "mapa": self.mapa})
+
+    async def api_midi_probar(self, request: web.Request) -> web.StreamResponse:
+        await self.probar_midi()
+        return web.json_response({"ok": self.midi.disponible, "midi": self.midi.estado()})
+
+    async def api_midi_panic(self, request: web.Request) -> web.StreamResponse:
+        self.silenciar_midi("pedido del panel (HTTP)")
+        return web.json_response({"ok": True, "midi": self.midi.estado()})
+
 
 def construir_app(mando: MandoVirtual, puerto: int, timeout_pad: float) -> web.Application:
     app_estado = App(mando, puerto, timeout_pad)
@@ -374,6 +633,11 @@ def construir_app(mando: MandoVirtual, puerto: int, timeout_pad: float) -> web.A
     app.router.add_get("/api/net", app_estado.api_net)
     app.router.add_get("/api/estado", app_estado.api_estado)
     app.router.add_get("/api/salud", app_estado.api_salud)
+    app.router.add_get("/api/midi", app_estado.api_midi)
+    app.router.add_post("/api/midi/puerto", app_estado.api_midi_puerto)
+    app.router.add_post("/api/midi/mapa", app_estado.api_midi_mapa)
+    app.router.add_post("/api/midi/probar", app_estado.api_midi_probar)
+    app.router.add_post("/api/midi/panic", app_estado.api_midi_panic)
     app.router.add_get("/ws", app_estado.ws)
     app.router.add_static("/static", WEB_DIR, show_index=False)
 
@@ -406,6 +670,10 @@ def construir_app(mando: MandoVirtual, puerto: int, timeout_pad: float) -> web.A
         mando.neutro()
         mando.latir(forzar=True)
         mando.cerrar()
+        try:
+            app["estado"].midi.cerrar()
+        except Exception:
+            pass
 
     app.on_startup.append(inicio)
     app.on_cleanup.append(cierre)
@@ -452,9 +720,18 @@ def main() -> int:
 
     ip = args.ip or ip_principal()
     app = construir_app(mando, args.puerto, args.timeout_pad)
+    est_midi = app["estado"].midi.estado()
 
     if not args.quiet:
         banner(args.puerto, ip)
+        if est_midi["disponible"]:
+            print(f"   MIDI (luces/video) :  puerto abierto -> {est_midi['puerto']}")
+        else:
+            print(f"   MIDI (luces/video) :  sin puerto ({est_midi['error']})")
+            print("                        abri loopMIDI (o elegi el puerto en el panel)")
+            if est_midi["salidas"]:
+                print(f"                        salidas disponibles: {', '.join(est_midi['salidas'])}")
+        print("")
         if not mando.disponible:
             print(f"  ATENCION: el mando virtual no esta activo ({mando.error})")
             print("  Revisa que el driver ViGEmBus este instalado.")

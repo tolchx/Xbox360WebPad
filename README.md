@@ -27,6 +27,7 @@ XInput** — incluidos juegos porteados que esperan un mando de Xbox 360 físico
 | | |
 |---|---|
 | 🕹️ **Pad táctil completo** | 2 sticks analógicos, A/B/X/Y, LB/RB, gatillos analógicos LT/RT, cruceta 8 direcciones, START/BACK/GUIDE, L3/R3 |
+| 🎛️ **Botonera MIDI** | el mismo celular, con un toque, se convierte en una **botonera MIDI personalizable** (pads + faders) para manejar **Resolume** o **QLC+** en paralelo al juego |
 | 📱 **Sin instalar apps** | el celular solo abre una URL (QR). Funciona en iPhone y Android |
 | 🎯 **Mando virtual real** | ViGEmBus + XInput: el juego lo ve como un *Xbox 360 Controller for Windows* |
 | 🖥️ **Panel del operador** | QR grande, estado en vivo (sticks, gatillos, botones, latencia) y botón *Soltar todo* |
@@ -103,6 +104,58 @@ Detalles pensados para jugar de verdad:
 
 ---
 
+## 🎛️ Modo MIDI (luces y video)
+
+Arriba de todo, en el celular, hay dos modos: **🎮 JOYSTICK** y **🎛️ MIDI**. En
+modo MIDI el mando se convierte en una **botonera personalizable** que manda
+mensajes MIDI reales por un puerto virtual de Windows, así podés manejar
+**Resolume Arena** y **QLC+** mientras el joystick sigue manejando el juego.
+
+```
+CELULAR (botonera MIDI) ──WebSocket──► server.py ──► puerto MIDI virtual ──► Resolume / QLC+
+```
+
+### Puesta en marcha (una sola vez)
+
+1. Tener **loopMIDI** (https://www.tobias-erichsen.de/software/loopmidi.html)
+   — es gratis y crea los puertos MIDI virtuales en Windows. El `.bat` lo abre
+   solo si lo encuentra instalado; si no, avisa.
+2. Dejar un puerto creado (el nombre por defecto `loopMIDI Port` sirve).
+3. En **Resolume**: *Preferences → MIDI* → elegir `loopMIDI Port` como input, activar
+   **MIDI map** y tocar en pantalla el control que quieras asignar; después apretás
+   el botón en el celular.
+4. En **QLC+**: *Inputs/Outputs* → agregar el mismo puerto como **Input** → usar el
+   asistente de mapeo (o el *Virtual Console* con botones).
+5. En el **panel** de la PC hay una tarjeta **MIDI** para elegir el puerto, probar
+   (`Probar MIDI`), silenciar todo (`panic`) y **editar el mapeo**.
+
+### Mapeo (qué manda cada botón)
+
+Cada banco tiene hasta 24 botones y 10 faders. Cada botón define:
+
+| Campo | Qué es |
+|---|---|
+| **Etiqueta** | el texto que se ve en el celular (ej. `COL 1`) |
+| **Tipo** | `note` (nota MIDI), `cc` (control continuo), `pc` (program change) |
+| **N°** | número MIDI (0–127) |
+| **Canal** | 1–16 |
+| **Modo** | `momento` (suena mientras apretás) · `toggle` (prende/apaga) · `disparo` (pulso corto automático) · `fijo` (solo encender) |
+| **Color** | color del botón en el celular |
+
+Los **faders** mandan CC de 0 a 127 de forma continua mientras los arrastrás
+(ideal para opacidad, velocidad de clip, dimmer de luces).
+
+Vienen dos bancos de fábrica listos para mapear: **RESOLUME** (notas 36–51 + CC 7–10)
+y **QLC+** (notas 60–75 + CC 11–14). Se editan desde el panel de la PC
+(tarjeta *3 · MIDI*) y se guardan en `midi-mapa.json`.
+
+Botón **SILENCIAR** (panic): manda *all notes off* en los 16 canales y apaga todo
+lo que haya quedado prendido. El servidor también lo hace solo cuando cerrás el
+mando, cuando el celular se desconecta o cuando volvés al modo joystick: **nunca
+queda una luz o un clip colgado**.
+
+---
+
 ## 🖥️ Panel del operador
 
 En la PC del juego → `http://127.0.0.1:8790/`
@@ -139,21 +192,25 @@ iniciar-mando.bat --help
 ## 📁 Estructura
 
 ```
-iniciar-mando.bat        lanzador: driver + firewall + runtime + servidor
+iniciar-mando.bat        lanzador: driver + firewall + runtime + puerto MIDI + servidor
 empaquetar-portable.bat  arma la carpeta portable (Python + deps + driver)
-server.py                HTTP + WebSocket + QR + panel + integracion con el mando
+server.py                HTTP + WebSocket + QR + panel + mando virtual + MIDI
 mando_virtual.py         mando Xbox 360 virtual (vgamepad/ViGEmBus): deadzone,
                          gatillos, botones, reconexion automatica
-requirements.txt         aiohttp, vgamepad, qrcode
+midi_salida.py           salida MIDI (mido/rtmidi): notas, CC, panic, reconexion
+midi-mapa.json           mapeo de la botonera MIDI (bancos, botones, faders)
+requirements.txt         aiohttp, vgamepad, qrcode, mido, python-rtmidi
 web/
-  index.html             panel del operador (QR + estado en vivo)
-  pad.html               mando táctil para el celular
-  pad.css                layout horizontal estilo Xbox 360
-  pad.js                 multitáctil, sticks, gatillos, cruceta, latido
+  index.html             panel del operador (QR + estado + editor de mapeo MIDI)
+  pad.html               mando táctil (joystick + botonera MIDI)
+  pad.css                layout horizontal estilo Xbox 360 + botonera
+  pad.js                 multitáctil, sticks, gatillos, cruceta, MIDI, latido
 tools/
   xinput_win.py          lectura cruda de XInput (ctypes)
   verificar_xinput.py    monitor en vivo de lo que ve el juego
-  prueba_completa.py     prueba automática punta a punta
+  prueba_completa.py     prueba automática punta a punta (joystick)
+  prueba_midi.py         prueba MIDI punta a punta (loopback por el puerto virtual)
+  midi_listo.py          asegura que haya un puerto MIDI virtual
   empaquetar_portable.py armado del paquete portable
 drivers/                 (solo en el portable) instalador ViGEmBus
 runtime/                 (solo en el portable) Python embebido + dependencias
@@ -173,26 +230,45 @@ cliente (otro celular, un control MIDI, un script, un bot).
  "b":{"a":true,"lb":false,...}}      // x,y en -1..1 (arriba = -1)
 {"t":"ping","ts":123.45}             // devuelve {"t":"pong","ts":...} para medir latencia
 {"t":"soltar"}                       // libera todos los controles
+{"t":"modo","modo":"joy"|"midi"}     // cambia de modo (libera lo que estaba activo)
+{"t":"midi","accion":"press","id":"r1"}          // apretar un botón del mapeo
+{"t":"midi","accion":"release","id":"r1"}        // soltarlo
+{"t":"midi","accion":"cc","id":"rf1","valor":99} // fader (0-127)
+{"t":"midi-panic"}                   // all notes off
 
 // panel -> servidor
 {"t":"hello","role":"panel"}
-{"t":"soltar"} | {"t":"probar"}      // probar = pulso de A
+{"t":"soltar"} | {"t":"probar"}                  // joystick
+{"t":"midi-probar"} | {"t":"midi-panic"}
+{"t":"midi-puerto","puerto":"loopMIDI Port"}     // elegir puerto MIDI
+{"t":"midi-mapa","mapa":{...}}                   // guardar el mapeo
 
 // servidor -> panel (10 Hz)
-{"t":"estado","mando":true,"conectados":1,"senal_hace_ms":42,
+{"t":"estado","mando":true,"conectados":1,"senal_hace_ms":42,"modo":"midi",
+ "midi":{"disponible":true,"puerto":"loopMIDI Port 1","mensajes":12,...},
  "estado":{"ls":[0,0],"rs":[0,0],"lt":0,"rt":0,"b":{...}}}
+
+// servidor -> celular
+{"t":"hola","mapa":{...},"modo":"joy","toggles":{"r9":true}}
+{"t":"mapa","mapa":{...}}            // el mapeo cambió en el panel
+{"t":"midi-estado","id":"r9","on":true}   // estado de un botón toggle
 ```
 
-Botones válidos: `a b x y lb rb start back guide l3 r3 up down left right`.
+Botones del joystick: `a b x y lb rb start back guide l3 r3 up down left right`.
+
+HTTP: `GET /api/midi` (estado + mapeo) · `POST /api/midi/puerto` ·
+`POST /api/midi/mapa` · `POST /api/midi/probar` · `POST /api/midi/panic`.
 
 ---
 
 ## ✅ Verificación (que el mando llegue de verdad al juego)
 
 ```bat
-.venv\Scripts\python.exe tools\prueba_completa.py          :: prueba punta a punta
+.venv\Scripts\python.exe tools\prueba_completa.py          :: joystick: 15 pruebas
 .venv\Scripts\python.exe tools\prueba_completa.py --forzar :: aunque haya otro celular conectado
 .venv\Scripts\python.exe tools\verificar_xinput.py --seguir :: monitor en vivo
+.venv\Scripts\python.exe tools\prueba_midi.py              :: MIDI: 8 pruebas (loopback real)
+.venv\Scripts\python.exe tools\midi_listo.py               :: ¿hay puerto MIDI listo?
 ```
 
 `prueba_completa.py` **simula el celular** por WebSocket, manda cada control y
@@ -208,6 +284,17 @@ Liberación al desconectarse · GUIDE llega al servidor
 
 También podés abrirlo desde Windows: **`joy.cpl`** → aparece
 *"Xbox 360 Controller for Windows"*. Es el mando virtual.
+
+`prueba_midi.py` hace lo mismo que la anterior pero para el **modo MIDI**: escucha
+el puerto MIDI virtual y comprueba que los toques del celular salgan de verdad como
+`note_on` / `note_off` / `CC`, que los botones *toggle* y *disparo* se comporten
+como corresponde y que al desconectarse no quede ninguna nota sonando:
+
+```
+botón momento (apretar/soltar) · toggle (encender/apagar) · disparo (auto-off)
+fader -> CC · vuelta a joystick (panic) · libera al desconectarse
+→ 8 pruebas OK, 0 con problemas
+```
 
 ---
 
@@ -251,6 +338,18 @@ release oficial, copia el código y verifica el runtime. Resultado: una carpeta
 **Los sticks quedan "pegados".**
 No debería pasar: el servidor libera todo a los 3 s sin señal, al desconectarse el
 último celular y con el botón *Soltar todo* del panel. Si pasa, avisá con el log.
+
+**El MIDI no llega a Resolume / QLC+.**
+1. Tiene que existir el puerto virtual: abrí **loopMIDI** y creá un puerto (o dejá
+   el que trae por defecto). El panel muestra el estado: si dice *sin puerto*,
+   todavía no está.
+2. En el panel, elegí el puerto en la lista y apretá **Usar ese puerto**; después
+   `Probar MIDI (nota 60)`: si el programa tiene el puerto como input, vas a verlo
+   entrar en su indicador de MIDI.
+3. En Resolume/QLC+ hay que **activar el input** y mapear: el pad no adivina los
+   controles, solo manda las notas/CC que definas en el mapeo.
+4. Verificá la cadena completa sin los programas:
+   `tools\prueba_midi.py` (escucha el puerto virtual y reporta 8/8).
 
 **El driver no instala.**
 Corré `drivers\ViGEmBus_*.exe` a mano (como administrador). Si Windows pide

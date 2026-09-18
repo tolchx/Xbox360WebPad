@@ -11,52 +11,71 @@
 </head>
 <body>
 
-<!-- barra de estado -->
+<!-- barra de estado + switch de modo -->
 <div id="top">
   <div id="estado"><span id="dot"></span><span id="txt">conectando…</span><span id="ping"></span></div>
+  <div id="modos">
+    <div class="modo sel" id="mJoy" data-modo="joy">🎮 JOYSTICK</div>
+    <div class="modo" id="mMidi" data-modo="midi">🎛️ MIDI</div>
+  </div>
+</div>
+<div id="avisos">
   <div id="sinmando" hidden>⚠ La PC no tiene el mando virtual activo</div>
+  <div id="sinmidi" hidden>⚠ La PC no tiene puerto MIDI abierto</div>
 </div>
 
-<!-- gatillos y hombros -->
-<div class="par arriba-izq">
-  <div class="btn gatillo" id="bLT" data-btn="lt"><i class="barra"></i><span class="et">LT</span></div>
-  <div class="btn hombro" id="bLB" data-btn="lb"><span class="et">LB</span></div>
-</div>
-<div class="par arriba-der">
-  <div class="btn hombro" id="bRB" data-btn="rb"><span class="et">RB</span></div>
-  <div class="btn gatillo" id="bRT" data-btn="rt"><i class="barra"></i><span class="et">RT</span></div>
+<!-- ══════════ CAPA 1: mando Xbox 360 ══════════ -->
+<div id="capa-joy">
+
+  <div class="par arriba-izq">
+    <div class="btn gatillo" id="bLT" data-btn="lt"><i class="barra"></i><span class="et">LT</span></div>
+    <div class="btn hombro" id="bLB" data-btn="lb"><span class="et">LB</span></div>
+  </div>
+  <div class="par arriba-der">
+    <div class="btn hombro" id="bRB" data-btn="rb"><span class="et">RB</span></div>
+    <div class="btn gatillo" id="bRT" data-btn="rt"><i class="barra"></i><span class="et">RT</span></div>
+  </div>
+
+  <div id="centro">
+    <div class="btn pill" id="bBack" data-btn="back"><span class="et">BACK</span></div>
+    <div class="btn pill guia" id="bGuide" data-btn="guide"><span class="et">GUIDE</span></div>
+    <div class="btn pill" id="bStart" data-btn="start"><span class="et">START</span></div>
+  </div>
+
+  <div id="dpad" class="ctrl">
+    <span class="flecha f-up"></span>
+    <span class="flecha f-down"></span>
+    <span class="flecha f-left"></span>
+    <span class="flecha f-right"></span>
+    <span class="hueco"></span>
+    <span class="et-dpad">D-PAD</span>
+  </div>
+
+  <div id="zStickL" class="zona-stick"><div class="aro"></div><div class="knob" id="knobL"></div><span class="et-stick">MOVER · toque = L3</span></div>
+  <div id="zStickR" class="zona-stick derecha"><div class="aro"></div><div class="knob" id="knobR"></div><span class="et-stick">CÁMARA · toque = R3</span></div>
+
+  <div id="abxy">
+    <div class="btn cara y" id="bY" data-btn="y"><span>Y</span></div>
+    <div class="btn cara x" id="bX" data-btn="x"><span>X</span></div>
+    <div class="btn cara b" id="bB" data-btn="b"><span>B</span></div>
+    <div class="btn cara a" id="bA" data-btn="a"><span>A</span></div>
+  </div>
+
+  <div id="hint">Movete con el stick <b>izquierdo</b>, mirá con el <b>derecho</b>.<br/>Manos al costado, como un mando real.</div>
 </div>
 
-<!-- centro: back / guide / start -->
-<div id="centro">
-  <div class="btn pill" id="bBack" data-btn="back"><span class="et">BACK</span></div>
-  <div class="btn pill guia" id="bGuide" data-btn="guide"><span class="et">GUIDE</span></div>
-  <div class="btn pill" id="bStart" data-btn="start"><span class="et">START</span></div>
+<!-- ══════════ CAPA 2: botonera MIDI ══════════ -->
+<div id="capa-midi" hidden>
+  <div id="midi-bar">
+    <div id="midi-paginas"></div>
+    <div class="midi-acc" id="midiPanic">SILENCIAR</div>
+  </div>
+  <div id="midi-cuerpo">
+    <div id="midi-botones"></div>
+    <div id="midi-faders"></div>
+  </div>
+  <div id="midi-pie"><span id="midi-info">MIDI</span></div>
 </div>
-
-<!-- D-Pad -->
-<div id="dpad" class="ctrl">
-  <span class="flecha f-up"></span>
-  <span class="flecha f-down"></span>
-  <span class="flecha f-left"></span>
-  <span class="flecha f-right"></span>
-  <span class="hueco"></span>
-  <span class="et-dpad">D-PAD</span>
-</div>
-
-<!-- sticks analógicos -->
-<div id="zStickL" class="zona-stick"><div class="aro"></div><div class="knob" id="knobL"></div><span class="et-stick">MOVER · toque = L3</span></div>
-<div id="zStickR" class="zona-stick derecha"><div class="aro"></div><div class="knob" id="knobR"></div><span class="et-stick">CÁMARA · toque = R3</span></div>
-
-<!-- botones de acción ABXY -->
-<div id="abxy">
-  <div class="btn cara y" id="bY" data-btn="y"><span>Y</span></div>
-  <div class="btn cara x" id="bX" data-btn="x"><span>X</span></div>
-  <div class="btn cara b" id="bB" data-btn="b"><span>B</span></div>
-  <div class="btn cara a" id="bA" data-btn="a"><span>A</span></div>
-</div>
-
-<div id="hint">Movete con el stick <b>izquierdo</b>, mirá con el <b>derecho</b>.<br/>Manos al costado, como un mando real.</div>
 
 <div id="rotate"><div class="ph">📱</div><p>Girá el celular en <b>horizontal</b> para usar el mando.</p></div>
 

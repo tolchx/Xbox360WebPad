@@ -189,7 +189,10 @@ rem ------------------------------------------------------------------
 rem  4) Servidor + mando virtual
 rem ------------------------------------------------------------------
 :arrancar
-echo   [4/4] Arrancando el servidor en el puerto %PUERTO%...
+echo   [4/4] Revisando el puerto MIDI (para Resolume / QLC+)...
+"%PYEXE%" tools\midi_listo.py
+echo.
+echo   Arrancando el servidor en el puerto %PUERTO%...
 echo.
 echo   Deja esta ventana abierta mientras jugas, podes minimizarla.
 echo   Ctrl+C para salir.

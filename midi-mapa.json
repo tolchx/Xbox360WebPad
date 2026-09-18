@@ -1,0 +1,364 @@
+{
+  "version": 1,
+  "puerto": "loopMIDI Port",
+  "paginas": [
+    {
+      "nombre": "RESOLUME",
+      "botones": [
+        {
+          "id": "r1",
+          "etiqueta": "COL 1",
+          "tipo": "note",
+          "num": 36,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#7aa2ff"
+        },
+        {
+          "id": "r2",
+          "etiqueta": "COL 2",
+          "tipo": "note",
+          "num": 37,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#7aa2ff"
+        },
+        {
+          "id": "r3",
+          "etiqueta": "COL 3",
+          "tipo": "note",
+          "num": 38,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#7aa2ff"
+        },
+        {
+          "id": "r4",
+          "etiqueta": "COL 4",
+          "tipo": "note",
+          "num": 39,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#7aa2ff"
+        },
+        {
+          "id": "r5",
+          "etiqueta": "COL 5",
+          "tipo": "note",
+          "num": 40,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#7aa2ff"
+        },
+        {
+          "id": "r6",
+          "etiqueta": "COL 6",
+          "tipo": "note",
+          "num": 41,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#7aa2ff"
+        },
+        {
+          "id": "r7",
+          "etiqueta": "COL 7",
+          "tipo": "note",
+          "num": 42,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#7aa2ff"
+        },
+        {
+          "id": "r8",
+          "etiqueta": "COL 8",
+          "tipo": "note",
+          "num": 43,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#7aa2ff"
+        },
+        {
+          "id": "r9",
+          "etiqueta": "LAYER 1",
+          "tipo": "note",
+          "num": 44,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#8affc1"
+        },
+        {
+          "id": "r10",
+          "etiqueta": "LAYER 2",
+          "tipo": "note",
+          "num": 45,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#8affc1"
+        },
+        {
+          "id": "r11",
+          "etiqueta": "LAYER 3",
+          "tipo": "note",
+          "num": 46,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#8affc1"
+        },
+        {
+          "id": "r12",
+          "etiqueta": "LAYER 4",
+          "tipo": "note",
+          "num": 47,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#8affc1"
+        },
+        {
+          "id": "r13",
+          "etiqueta": "TAP BPM",
+          "tipo": "note",
+          "num": 48,
+          "canal": 1,
+          "modo": "disparo",
+          "color": "#ffc400"
+        },
+        {
+          "id": "r14",
+          "etiqueta": "FX 1",
+          "tipo": "note",
+          "num": 49,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#ffc400"
+        },
+        {
+          "id": "r15",
+          "etiqueta": "FX 2",
+          "tipo": "note",
+          "num": 50,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#ffc400"
+        },
+        {
+          "id": "r16",
+          "etiqueta": "BLACK",
+          "tipo": "note",
+          "num": 51,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#ff4d4d"
+        }
+      ],
+      "faders": [
+        {
+          "id": "rf1",
+          "etiqueta": "OPACITY",
+          "tipo": "cc",
+          "num": 7,
+          "canal": 1
+        },
+        {
+          "id": "rf2",
+          "etiqueta": "SPEED",
+          "tipo": "cc",
+          "num": 8,
+          "canal": 1
+        },
+        {
+          "id": "rf3",
+          "etiqueta": "FX AMT",
+          "tipo": "cc",
+          "num": 9,
+          "canal": 1
+        },
+        {
+          "id": "rf4",
+          "etiqueta": "MASTER",
+          "tipo": "cc",
+          "num": 10,
+          "canal": 1
+        }
+      ]
+    },
+    {
+      "nombre": "QLC+",
+      "botones": [
+        {
+          "id": "q1",
+          "etiqueta": "ESC 1",
+          "tipo": "note",
+          "num": 60,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#ffc400"
+        },
+        {
+          "id": "q2",
+          "etiqueta": "ESC 2",
+          "tipo": "note",
+          "num": 61,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#ffc400"
+        },
+        {
+          "id": "q3",
+          "etiqueta": "ESC 3",
+          "tipo": "note",
+          "num": 62,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#ffc400"
+        },
+        {
+          "id": "q4",
+          "etiqueta": "ESC 4",
+          "tipo": "note",
+          "num": 63,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#ffc400"
+        },
+        {
+          "id": "q5",
+          "etiqueta": "ESC 5",
+          "tipo": "note",
+          "num": 64,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#ffc400"
+        },
+        {
+          "id": "q6",
+          "etiqueta": "ESC 6",
+          "tipo": "note",
+          "num": 65,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#ffc400"
+        },
+        {
+          "id": "q7",
+          "etiqueta": "ESC 7",
+          "tipo": "note",
+          "num": 66,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#ffc400"
+        },
+        {
+          "id": "q8",
+          "etiqueta": "ESC 8",
+          "tipo": "note",
+          "num": 67,
+          "canal": 1,
+          "modo": "momento",
+          "color": "#ffc400"
+        },
+        {
+          "id": "q9",
+          "etiqueta": "FUNC 1",
+          "tipo": "note",
+          "num": 68,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#8affc1"
+        },
+        {
+          "id": "q10",
+          "etiqueta": "FUNC 2",
+          "tipo": "note",
+          "num": 69,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#8affc1"
+        },
+        {
+          "id": "q11",
+          "etiqueta": "FUNC 3",
+          "tipo": "note",
+          "num": 70,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#8affc1"
+        },
+        {
+          "id": "q12",
+          "etiqueta": "FUNC 4",
+          "tipo": "note",
+          "num": 71,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#8affc1"
+        },
+        {
+          "id": "q13",
+          "etiqueta": "BLACKOUT",
+          "tipo": "note",
+          "num": 72,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#ff4d4d"
+        },
+        {
+          "id": "q14",
+          "etiqueta": "STROBE",
+          "tipo": "note",
+          "num": 73,
+          "canal": 1,
+          "modo": "toggle",
+          "color": "#ff4d4d"
+        },
+        {
+          "id": "q15",
+          "etiqueta": "NEXT",
+          "tipo": "note",
+          "num": 74,
+          "canal": 1,
+          "modo": "disparo",
+          "color": "#a07aff"
+        },
+        {
+          "id": "q16",
+          "etiqueta": "PREV",
+          "tipo": "note",
+          "num": 75,
+          "canal": 1,
+          "modo": "disparo",
+          "color": "#a07aff"
+        }
+      ],
+      "faders": [
+        {
+          "id": "qf1",
+          "etiqueta": "DIMMER",
+          "tipo": "cc",
+          "num": 11,
+          "canal": 1
+        },
+        {
+          "id": "qf2",
+          "etiqueta": "PAN",
+          "tipo": "cc",
+          "num": 12,
+          "canal": 1
+        },
+        {
+          "id": "qf3",
+          "etiqueta": "TILT",
+          "tipo": "cc",
+          "num": 13,
+          "canal": 1
+        },
+        {
+          "id": "qf4",
+          "etiqueta": "COLOR",
+          "tipo": "cc",
+          "num": 14,
+          "canal": 1
+        }
+      ]
+    }
+  ]
+}

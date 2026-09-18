@@ -38,8 +38,15 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;position:fix
 #dot{width:8px;height:8px;border-radius:50%;background:#ff5c5c;box-shadow:0 0 10px #ff5c5c;transition:.25s;}
 #dot.on{background:var(--acento);box-shadow:0 0 10px var(--acento);}
 #ping{color:var(--dim);font-variant-numeric:tabular-nums;}
-#sinmando{position:fixed;top:calc(var(--m) + 34px);left:50%;transform:translateX(-50%);
-  z-index:41;padding:6px 12px;border-radius:999px;background:rgba(255,77,77,.16);
+#modos{display:flex;border-radius:999px;background:var(--panel);border:1px solid var(--line);
+  backdrop-filter:blur(14px);overflow:hidden;pointer-events:auto;}
+.modo{padding:8px 14px;font-size:clamp(10px,2.1vmin,14px);font-weight:750;color:var(--dim);
+  letter-spacing:.03em;transition:.15s;}
+.modo.sel{background:linear-gradient(135deg,rgba(138,255,193,.26),rgba(122,162,255,.24));
+  color:#fff;box-shadow:inset 0 0 18px rgba(138,255,193,.18);}
+#avisos{position:fixed;top:calc(var(--m) + 36px);left:50%;transform:translateX(-50%);z-index:41;
+  display:flex;flex-direction:column;gap:6px;align-items:center;pointer-events:none;}
+#avisos > div{padding:6px 12px;border-radius:999px;background:rgba(255,77,77,.16);
   border:1px solid rgba(255,77,77,.5);color:#ffd7d7;
   font-size:clamp(10px,2vmin,13px);font-weight:600;white-space:nowrap;}
 
@@ -146,6 +153,42 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;position:fix
   font-size:clamp(11px,2.2vmin,16px);color:var(--dim);text-align:center;line-height:1.7;
   pointer-events:none;transition:opacity .6s;padding:0 20px;}
 #hint b{color:var(--acento);}
+
+/* ── botonera MIDI ──────────────────────────────────────────────────────── */
+#capa-midi{position:fixed;inset:0;display:flex;flex-direction:column;gap:1.4vmin;
+  padding:calc(var(--m) + 9.5vmin) var(--m) var(--m);z-index:22;}
+#midi-bar{display:flex;align-items:center;gap:1.2vmin;}
+#midi-paginas{display:flex;gap:.8vmin;overflow-x:auto;scrollbar-width:none;}
+#midi-paginas::-webkit-scrollbar{display:none;}
+.pag{padding:.9vmin 2vmin;border-radius:999px;background:var(--panel);border:1px solid var(--line);
+  font-size:clamp(9px,1.9vmin,14px);font-weight:750;color:var(--dim);white-space:nowrap;}
+.pag.sel{color:#fff;border-color:rgba(138,255,193,.6);background:rgba(138,255,193,.14);}
+.midi-acc{margin-left:auto;padding:.9vmin 2.2vmin;border-radius:999px;border:1px solid rgba(255,77,77,.45);
+  color:#ffd7d7;font-size:clamp(9px,1.9vmin,13px);font-weight:750;background:rgba(255,77,77,.12);}
+.midi-acc.act{background:rgba(255,77,77,.3);}
+#midi-cuerpo{display:flex;gap:1.6vmin;flex:1;min-height:0;}
+#midi-botones{flex:1;display:grid;grid-template-columns:repeat(4,1fr);grid-auto-rows:1fr;
+  gap:1.2vmin;min-width:0;}
+.mbot{display:flex;align-items:center;justify-content:center;text-align:center;border-radius:1.8vmin;
+  border:1.5px solid var(--line);background:var(--panel);color:var(--txt);
+  font-size:clamp(8.5px,2vmin,15px);font-weight:750;letter-spacing:.02em;padding:.6vmin;
+  overflow:hidden;line-height:1.15;transition:transform .07s,background .1s,border-color .1s;}
+.mbot.on{background:linear-gradient(135deg,rgba(138,255,193,.30),rgba(122,162,255,.26));
+  border-color:rgba(138,255,193,.8);box-shadow:0 0 22px rgba(138,255,193,.3);transform:scale(.97);}
+#midi-faders{width:min(34vmin,30%);display:flex;gap:1.2vmin;}
+.mfader{flex:1;display:flex;flex-direction:column;align-items:center;gap:.5vmin;min-width:0;}
+.mfader .riel{position:relative;flex:1;width:100%;border-radius:1.6vmin;background:rgba(255,255,255,.05);
+  border:1.5px solid var(--line);overflow:hidden;touch-action:none;}
+.mfader .relleno{position:absolute;left:0;right:0;bottom:0;height:0%;
+  background:linear-gradient(180deg,rgba(138,255,193,.55),rgba(122,162,255,.45));}
+.mfader .val{font-size:clamp(8px,1.6vmin,12px);color:var(--dim);font-weight:700;
+  font-variant-numeric:tabular-nums;}
+.mfader .etq{font-size:clamp(7.5px,1.5vmin,12px);color:var(--dim);font-weight:750;
+  letter-spacing:.06em;text-transform:uppercase;text-align:center;line-height:1.1;
+  white-space:nowrap;overflow:hidden;text-overflow:ellipsis;max-width:100%;}
+#midi-pie{display:flex;justify-content:center;}
+#midi-info{font-size:clamp(8.5px,1.7vmin,12px);color:var(--dim);letter-spacing:.08em;
+  text-transform:uppercase;font-weight:700;}
 
 /* pantallas muy bajas (celulares apaisados chicos): achicamos todo */
 @media (max-height:420px){

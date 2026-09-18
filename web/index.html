@@ -83,6 +83,26 @@
   .aviso{margin-top:14px;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.55;
     background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.4);color:#ffd7d7;}
   .aviso.ok{background:rgba(138,255,193,.08);border-color:rgba(138,255,193,.3);color:#d6ffe9;}
+  .sel-mini{padding:11px 12px;border-radius:12px;background:rgba(255,255,255,.07);
+    border:1px solid var(--line);color:var(--txt);font-size:13px;font-weight:650;max-width:280px;}
+  .bancos{display:flex;gap:8px;flex-wrap:wrap;margin:16px 0 10px;}
+  .banco{padding:8px 14px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line);
+    font-size:13px;font-weight:650;color:var(--dim);cursor:pointer;}
+  .banco.sel{border-color:rgba(138,255,193,.6);color:#fff;background:rgba(138,255,193,.14);}
+  .midi-tabla table{width:100%;border-collapse:collapse;font-size:12.5px;}
+  .midi-tabla th{text-align:left;color:var(--dim);font-weight:700;font-size:11px;letter-spacing:.1em;
+    text-transform:uppercase;padding:6px 8px;border-bottom:1px solid var(--line);}
+  .midi-tabla td{padding:4px 6px;border-bottom:1px solid rgba(255,255,255,.05);}
+  .midi-tabla input,.midi-tabla select{width:100%;padding:7px 8px;border-radius:9px;
+    background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--txt);font-size:12.5px;}
+  .midi-tabla input[type=color]{padding:2px;height:32px;}
+  .midi-tabla .num{max-width:76px;}
+  .midi-tabla .borrar{padding:6px 10px;border-radius:9px;background:rgba(255,77,77,.14);
+    border:1px solid rgba(255,77,77,.4);color:#ffd7d7;font-size:12px;cursor:pointer;}
+  .midi-sub{display:flex;align-items:center;gap:10px;margin:14px 0 6px;}
+  .midi-sub b{font-size:12px;letter-spacing:.12em;text-transform:uppercase;color:var(--dim);}
+  .midi-sub .mini{padding:6px 11px;border-radius:9px;background:rgba(255,255,255,.08);
+    border:1px solid var(--line);color:var(--txt);font-size:12px;font-weight:650;cursor:pointer;}
 </style>
 </head>
 <body>
@@ -152,6 +172,36 @@
         Si podés jugar el juego, <b>esta PC ya tiene el mando</b>: en Windows abrí
         <code>joy.cpl</code> y vas a ver “Xbox 360 Controller for Windows”.
       </div>
+    </div>
+  </div>
+
+  <!-- ══════════ MIDI ══════════ -->
+  <div class="card" style="margin-top:18px">
+    <h2>3 · MIDI — luces y video (Resolume · QLC+)</h2>
+    <div class="pills" style="margin-bottom:14px">
+      <div class="pill">puerto <b id="vMidi">—</b></div>
+      <div class="pill">mensajes <b id="vMidiMsgs">0</b></div>
+      <div class="pill">último <b id="vMidiUlt">—</b></div>
+      <div class="pill">modo del celular <b id="vModo">joystick</b></div>
+    </div>
+
+    <div class="acciones" style="margin-top:0">
+      <select id="selPuerto" class="mini sel-mini"></select>
+      <button class="btn-acc" id="midiPuerto">Usar ese puerto</button>
+      <button class="btn-acc" id="midiProbar">Probar MIDI (nota 60)</button>
+      <button class="btn-acc rojo" id="midiPanic">Silenciar todo</button>
+      <button class="btn-acc" id="nuevoBanco">+ banco</button>
+      <button class="btn-acc" id="midiGuardar">💾 Guardar mapeo</button>
+    </div>
+    <div class="aviso" id="midiAviso" style="display:none"></div>
+
+    <div class="bancos" id="bancosMidi"></div>
+    <div class="midi-tabla" id="midiTabla"></div>
+    <div class="nota">
+      En <b>Resolume</b>: Preferences → MIDI → elegí el puerto y activá <i>MIDI map</i> para
+      asignar cada botón. En <b>QLC+</b>: Inputs/Outputs → agregá el puerto como
+      <i>Input</i> y usá el asistente de mapeo. El puerto virtual lo crea
+      <b>loopMIDI</b> (debe estar abierto en la bandeja).
     </div>
   </div>
 </div>
@@ -254,6 +304,237 @@
     } else {
       av.style.display = 'none';
     }
+
+    if (d.midi) pintarMidi(d.midi, d.modo);
+  }
+
+  /* ══════════════════ MIDI ══════════════════ */
+  let mapa = null, bancoEd = 0;
+
+  function pintarMidi(m, modo) {
+    $('#vMidi').textContent = m.disponible ? (m.puerto || 'abierto') : 'sin puerto';
+    $('#vMidiMsgs').textContent = m.mensajes;
+    $('#vMidiUlt').textContent = m.ultimo ? `${m.ultimo.tipo} · ${m.ultimo.dato}` : '—';
+    $('#vModo').textContent = (modo === 'midi') ? 'MIDI' : 'joystick';
+
+    const av = $('#midiAviso');
+    if (!m.disponible) {
+      av.style.display = '';
+      av.className = 'aviso';
+      av.innerHTML = `Sin puerto MIDI abierto: ${m.error || ''}<br/>
+        Abrí <b>loopMIDI</b> (tiene que estar en la bandeja del sistema) o elegí otro puerto de la lista.`;
+    } else {
+      av.style.display = 'none';
+    }
+
+    const sel = $('#selPuerto');
+    const salidas = m.salidas || [];
+    const firma = salidas.join('|') + '#' + (m.puerto || '') + '#' + (m.pedido || '');
+    if (sel.dataset.firma !== firma) {
+      sel.dataset.firma = firma;
+      sel.innerHTML = '';
+      if (!salidas.length) {
+        const o = document.createElement('option');
+        o.textContent = '(no hay puertos MIDI)';
+        sel.appendChild(o);
+      }
+      for (const s of salidas) {
+        const o = document.createElement('option');
+        o.value = s; o.textContent = s;
+        if (s === m.puerto) o.selected = true;
+        sel.appendChild(o);
+      }
+    }
+  }
+
+  async function cargarMapa() {
+    try {
+      const r = await fetch('/api/midi', { cache: 'no-store' });
+      const d = await r.json();
+      mapa = d.mapa;
+      pintarMidi(d.midi, d.modo);
+      pintarEditor();
+    } catch (e) { /* se reintenta al guardar */ }
+  }
+
+  function campo(valor, tipo, alCambiar, extra = {}) {
+    const el = document.createElement('input');
+    el.type = tipo;
+    if (tipo === 'number') { el.min = extra.min ?? 0; el.max = extra.max ?? 127; }
+    el.value = valor;
+    if (extra.clase) el.className = extra.clase;
+    el.addEventListener('change', () => alCambiar(el.value));
+    return el;
+  }
+
+  function selector(opciones, valor, alCambiar) {
+    const sel = document.createElement('select');
+    for (const o of opciones) {
+      const op = document.createElement('option');
+      op.value = o; op.textContent = o;
+      if (o === valor) op.selected = true;
+      sel.appendChild(op);
+    }
+    sel.addEventListener('change', () => alCambiar(sel.value));
+    return sel;
+  }
+
+  function tablaSimple(titulo, filas, cabeceras, agregar) {
+    const cont = document.createElement('div');
+    const sub = document.createElement('div');
+    sub.className = 'midi-sub';
+    sub.innerHTML = `<b>${titulo}</b>`;
+    const mas = document.createElement('button');
+    mas.className = 'mini';
+    mas.textContent = agregar.etiqueta;
+    mas.onclick = agregar.accion;
+    sub.appendChild(mas);
+    cont.appendChild(sub);
+
+    const tabla = document.createElement('table');
+    const thead = document.createElement('thead');
+    const trh = document.createElement('tr');
+    for (const h of cabeceras) {
+      const th = document.createElement('th');
+      th.textContent = h;
+      trh.appendChild(th);
+    }
+    thead.appendChild(trh); tabla.appendChild(thead);
+    const tbody = document.createElement('tbody');
+    for (const f of filas) tbody.appendChild(f);
+    tabla.appendChild(tbody);
+    cont.appendChild(tabla);
+    return cont;
+  }
+
+  function pintarEditor() {
+    const cont = $('#bancosMidi');
+    const tabla = $('#midiTabla');
+    cont.innerHTML = ''; tabla.innerHTML = '';
+    if (!mapa || !mapa.paginas.length) return;
+    bancoEd = Math.min(bancoEd, mapa.paginas.length - 1);
+
+    mapa.paginas.forEach((p, i) => {
+      const d = document.createElement('div');
+      d.className = 'banco' + (i === bancoEd ? ' sel' : '');
+      d.textContent = p.nombre || `BANCO ${i + 1}`;
+      d.onclick = () => { bancoEd = i; pintarEditor(); };
+      cont.appendChild(d);
+    });
+    const pag = mapa.paginas[bancoEd];
+
+    const cont2 = document.createElement('div');   // nombre del banco + borrar
+    const sub = document.createElement('div');
+    sub.className = 'midi-sub';
+    const nom = document.createElement('input');
+    nom.value = pag.nombre || '';
+    nom.placeholder = 'nombre del banco';
+    nom.style.cssText = 'max-width:220px;padding:8px 10px;border-radius:10px;background:rgba(255,255,255,.06);border:1px solid var(--line);color:var(--txt)';
+    nom.onchange = () => { pag.nombre = nom.value.slice(0, 20); pintarEditor(); };
+    const del = document.createElement('button');
+    del.className = 'mini';
+    del.textContent = 'borrar banco';
+    del.onclick = () => {
+      if (mapa.paginas.length <= 1) return;
+      mapa.paginas.splice(bancoEd, 1);
+      bancoEd = 0; pintarEditor();
+    };
+    sub.appendChild(nom); sub.appendChild(del);
+    cont2.appendChild(sub);
+    tabla.appendChild(cont2);
+
+    /* ── botones ── */
+    const filasB = pag.botones.map((b, j) => {
+      const tr = document.createElement('tr');
+      tr.appendChild(celda(campo(b.etiqueta, 'text', v => { b.etiqueta = v.slice(0, 20); })));
+      tr.appendChild(celda(selector(['note', 'cc', 'pc'], b.tipo, v => { b.tipo = v; })));
+      tr.appendChild(celda(campo(b.num, 'number', v => { b.num = +v; }, { clase: 'num' })));
+      tr.appendChild(celda(campo(b.canal, 'number', v => { b.canal = +v; }, { min: 1, max: 16, clase: 'num' })));
+      tr.appendChild(celda(selector(['momento', 'toggle', 'disparo', 'fijo'], b.modo, v => { b.modo = v; })));
+      tr.appendChild(celda(campo(b.color || '#7aa2ff', 'color', v => { b.color = v; })));
+      const td = document.createElement('td');
+      const x = document.createElement('button');
+      x.className = 'borrar'; x.textContent = '✕';
+      x.onclick = () => { pag.botones.splice(j, 1); pintarEditor(); };
+      td.appendChild(x); tr.appendChild(td);
+      return tr;
+    });
+    tabla.appendChild(tablaSimple('BOTONES', filasB,
+      ['Etiqueta', 'Tipo', 'N°', 'Canal', 'Modo', 'Color', ''],
+      { etiqueta: '+ botón', accion: () => {
+        pag.botones.push({ id: 'b' + Date.now().toString(36), etiqueta: 'NUEVO', tipo: 'note',
+                           num: 36, canal: 1, modo: 'momento', color: '#7aa2ff' });
+        pintarEditor();
+      } }));
+
+    /* ── faders ── */
+    const filasF = pag.faders.map((f, j) => {
+      const tr = document.createElement('tr');
+      tr.appendChild(celda(campo(f.etiqueta, 'text', v => { f.etiqueta = v.slice(0, 20); })));
+      tr.appendChild(celda(selector(['cc', 'note', 'pc'], f.tipo, v => { f.tipo = v; })));
+      tr.appendChild(celda(campo(f.num, 'number', v => { f.num = +v; }, { clase: 'num' })));
+      tr.appendChild(celda(campo(f.canal, 'number', v => { f.canal = +v; }, { min: 1, max: 16, clase: 'num' })));
+      const td = document.createElement('td');
+      const x = document.createElement('button');
+      x.className = 'borrar'; x.textContent = '✕';
+      x.onclick = () => { pag.faders.splice(j, 1); pintarEditor(); };
+      td.appendChild(x); tr.appendChild(td);
+      return tr;
+    });
+    tabla.appendChild(tablaSimple('FADERS', filasF,
+      ['Etiqueta', 'Tipo', 'N°', 'Canal', ''],
+      { etiqueta: '+ fader', accion: () => {
+        pag.faders.push({ id: 'f' + Date.now().toString(36), etiqueta: 'FADER', tipo: 'cc',
+                          num: 7, canal: 1 });
+        pintarEditor();
+      } }));
+  }
+
+  function celda(hijo) {
+    const td = document.createElement('td');
+    td.appendChild(hijo);
+    return td;
+  }
+
+  $('#nuevoBanco').onclick = () => {
+    if (!mapa) return;
+    mapa.paginas.push({ nombre: `BANCO ${mapa.paginas.length + 1}`, botones: [], faders: [] });
+    bancoEd = mapa.paginas.length - 1;
+    pintarEditor();
+  };
+
+  $('#midiGuardar').onclick = async () => {
+    const b = $('#midiGuardar');
+    b.textContent = 'guardando…';
+    try {
+      const r = await fetch('/api/midi/mapa', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ mapa })
+      });
+      const d = await r.json();
+      if (d.mapa) { mapa = d.mapa; pintarEditor(); }
+      b.textContent = '✓ guardado';
+    } catch { b.textContent = '✗ error'; }
+    setTimeout(() => b.textContent = '💾 Guardar mapeo', 1800);
+  };
+
+  $('#midiProbar').onclick = () => enviarHttp('/api/midi/probar');
+  $('#midiPanic').onclick = () => enviarHttp('/api/midi/panic');
+  $('#midiPuerto').onclick = async () => {
+    const puerto = $('#selPuerto').value;
+    try {
+      await fetch('/api/midi/puerto', {
+        method: 'POST',
+        headers: { 'content-type': 'application/json' },
+        body: JSON.stringify({ puerto })
+      });
+      cargarMapa();
+    } catch {}
+  };
+  async function enviarHttp(url) {
+    try { const r = await fetch(url, { method: 'POST' }); return await r.json(); }
+    catch { return {}; }
   }
 
   function conectar() {
@@ -273,6 +554,7 @@
   }
 
   cargarRed();
+  cargarMapa();
   conectar();
 })();
 </script>
