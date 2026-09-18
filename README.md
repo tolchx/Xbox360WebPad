@@ -369,7 +369,7 @@ como corresponde y que al desconectarse no quede ninguna nota sonando:
 ```
 botón momento (apretar/soltar) · toggle (encender/apagar) · disparo (auto-off)
 fader -> CC · vuelta a joystick (panic) · libera al desconectarse
-→ 8 pruebas OK, 0 con problemas
+→ 18 pruebas OK, 0 con problemas
 ```
 
 ---
