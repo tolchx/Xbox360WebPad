@@ -362,5 +362,126 @@
     }
   ],
   "joystick_activo": false,
-  "joystick": []
+  "joystick": [
+    {
+      "control": "a",
+      "tipo": "note",
+      "num": 36,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j1",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "b",
+      "tipo": "note",
+      "num": 37,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j2",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "x",
+      "tipo": "note",
+      "num": 38,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j3",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "y",
+      "tipo": "note",
+      "num": 39,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j4",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "lb",
+      "tipo": "note",
+      "num": 40,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j5",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "rb",
+      "tipo": "note",
+      "num": 41,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j6",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "lt",
+      "tipo": "cc",
+      "num": 7,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j7",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "rt",
+      "tipo": "cc",
+      "num": 8,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j8",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "ls_x",
+      "tipo": "cc",
+      "num": 9,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j9",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "ls_y",
+      "tipo": "cc",
+      "num": 10,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j10",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "rs_x",
+      "tipo": "cc",
+      "num": 11,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j11",
+      "umbral": 0.6,
+      "invertir": false
+    },
+    {
+      "control": "rs_y",
+      "tipo": "cc",
+      "num": 12,
+      "canal": 1,
+      "modo": "momento",
+      "id": "j12",
+      "umbral": 0.6,
+      "invertir": false
+    }
+  ]
 }

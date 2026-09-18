@@ -69,6 +69,16 @@ CONTROLES_JOY = ("a", "b", "x", "y", "lb", "rb", "start", "back", "guide",
                  "lt", "rt", "ls_x", "ls_y", "rs_x", "rs_y")
 CONTROLES_ANALOGOS = ("lt", "rt", "ls_x", "ls_y", "rs_x", "rs_y")
 
+# nombres para mostrar (los mismos que usa el panel), para los carteles de learn
+ETQ_JOYSTICK = {
+    "a": "A", "b": "B", "x": "X", "y": "Y", "lb": "LB", "rb": "RB",
+    "start": "START", "back": "BACK", "guide": "GUIDE", "l3": "L3", "r3": "R3",
+    "up": "CRUCETA arriba", "down": "CRUCETA abajo", "left": "CRUCETA izquierda",
+    "right": "CRUCETA derecha", "lt": "GATILLO LT", "rt": "GATILLO RT",
+    "ls_x": "STICK IZQ horizontal", "ls_y": "STICK IZQ vertical",
+    "rs_x": "STICK DER horizontal", "rs_y": "STICK DER vertical",
+}
+
 
 def _flotante(valor, defecto: float, lo: float, hi: float) -> float:
     try:
@@ -454,7 +464,11 @@ class App:
 
     # ── MIDI ───────────────────────────────────────────────────────────────
     def buscar_control(self, ident: str) -> tuple[dict | None, bool]:
-        """Busca un boton o fader del mapeo por id. Devuelve (control, es_fader)."""
+        """Busca un boton, fader o mapeo del joystick por id. Devuelve (control, es_fader).
+
+        Incluye las filas de joystick -> MIDI: asi el MIDI learn tambien sirve para
+        aprender el numero de un boton del mando (ej. A -> nota 36).
+        """
         for pag in self.mapa.get("paginas", []):
             for f in pag.get("faders", []):
                 if f.get("id") == ident:
@@ -462,6 +476,9 @@ class App:
             for b in pag.get("botones", []):
                 if b.get("id") == ident:
                     return b, False
+        for j in self.mapa.get("joystick") or []:
+            if j.get("id") == ident:
+                return j, False
         return None, False
 
     def enviar_ctrl(self, tipo: str, num: int, valor: int, canal: int) -> None:
@@ -562,8 +579,9 @@ class App:
         if not ident:
             self.aprender = None
             return True
-        ctrl, _ = self.buscar_control(ident)
+        ctrl, es_fader = self.buscar_control(ident)
         if ctrl is None:
+            print(f"[midi] aprender: no encuentro el control '{ident}'", flush=True)
             return False
         self.aprender = {"id": ident, "desde": time.monotonic()}
         nombre = ctrl.get("etiqueta") or ident
@@ -688,12 +706,13 @@ class App:
         self.joy_notas.clear()
 
     def etiqueta_control(self, ident: str | None) -> str:
+        """Nombre lindo de un control, para los carteles (learn)."""
         if not ident:
             return ""
         ctrl, _ = self.buscar_control(ident)
         if ctrl is None:
             return ident
-        return str(ctrl.get("etiqueta") or ident)
+        return str(ctrl.get("etiqueta") or ETQ_JOYSTICK.get(ctrl.get("control", ""), "") or ident)
 
     async def avisar_aprender(self) -> None:
         """Cuenta a los celulares que hay un control en MIDI learn."""

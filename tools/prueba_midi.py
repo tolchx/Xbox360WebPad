@@ -228,7 +228,9 @@ async def main() -> int:
                     await r.json()
                 async with sesion.get(f"{args.http}/api/midi") as r:
                     vuelto = (await r.json())["mapa"]
-                if (not vuelto.get("joystick")
+                # el mapeo original puede traer filas de joystick: comparamos con lo
+                # que había antes en vez de exigir una lista vacía
+                if (len(vuelto.get("joystick") or []) == len(mapa.get("joystick") or [])
                         and vuelto["paginas"][0]["botones"][0]["num"]
                         == mapa["paginas"][0]["botones"][0]["num"]):
                     ok += 1
@@ -314,6 +316,37 @@ async def main() -> int:
 
             # restaurar el mapeo original
             await restaurar("lear n sin cambios permanentes")
+
+            # ── MIDI learn en una fila del joystick (control del mando) ──
+            mapa_j = json.loads(json.dumps(mapa))
+            mapa_j["joystick_activo"] = False              # sin motor: solo probamos el learn
+            mapa_j["joystick"] = [{"id": "jtest9", "control": "a", "tipo": "note", "num": 36,
+                                   "canal": 1, "modo": "momento", "umbral": 0.6,
+                                   "invertir": False}]
+            async with sesion.post(f"{args.http}/api/midi/mapa", json={"mapa": mapa_j}) as r:
+                await r.json()
+            await asyncio.sleep(0.3)
+            async with sesion.post(f"{args.http}/api/midi/learn",
+                                   json={"id": "jtest9"}) as r:
+                armado = (await r.json()).get("ok")
+            if not armado:
+                fallos += 1
+                print(f"{'learn en fila del joystick':<36} {'FALLA':<10} no pudo armar")
+            else:
+                with mido.open_output(puerto_salida_virtual()) as salida_aux:
+                    salida_aux.send(mido.Message("note_on", note=64, velocity=100, channel=3))
+                await asyncio.sleep(0.8)
+                async with sesion.get(f"{args.http}/api/midi") as r:
+                    vuelto_j = (await r.json())["mapa"]
+                it = next((x for x in (vuelto_j.get("joystick") or [])
+                           if x["id"] == "jtest9"), {})
+                if it.get("num") == 64 and it.get("canal") == 4:
+                    ok += 1
+                    print(f"{'learn en fila del joystick':<36} {'OK':<10} A: 36 -> nota 64 ch 4")
+                else:
+                    fallos += 1
+                    print(f"{'learn en fila del joystick':<36} {'FALLA':<10} quedó {it}")
+            await restaurar("joystick learn sin cambios")
 
             # vuelta a modo joystick: tiene que mandar el panic
             await ws.send_str(json.dumps({"t": "modo", "modo": "midi"}))

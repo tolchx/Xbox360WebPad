@@ -344,8 +344,9 @@
     const av = $('#aprenderAviso');
     if (aprender) {
       const c = buscarEnMapa(aprender);
+      const nombre = c ? (c.etiqueta || ETQ_CONTROL[c.control] || aprender) : aprender;
       av.style.display = '';
-      av.innerHTML = `🎯 <b>Aprendiendo</b> → <b>${c ? (c.etiqueta || aprender) : aprender}</b>.
+      av.innerHTML = `🎯 <b>Aprendiendo</b> → <b>${nombre}</b>.
         Tocá el control en pantalla de Resolume/QLC+, mandá la señal desde la mesa,
         o apretá un pad del celular para copiar su número.
         <button class="mini" id="learnCancelar">cancelar</button>`;
@@ -736,6 +737,9 @@
     ws.onmessage = ev => {
       let m; try { m = JSON.parse(ev.data); } catch { return; }
       if (m.t === 'estado') pintarEstado(m);
+      if (m.t === 'midi-learn-ok' && m.ok === false) {
+        alert('No pude armar el MIDI learn para ese control.');
+      }
     };
     ws.onclose = () => {
       $('#dot').className = '';
