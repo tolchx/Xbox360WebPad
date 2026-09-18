@@ -1,0 +1,11 @@
+# Normalizacion de finales de linea.
+# Los .bat NECESITAN CRLF en Windows: con LF el parser de cmd.exe se rompe.
+* text=auto
+*.bat text eol=crlf
+*.py  text eol=lf
+*.js  text eol=lf
+*.css text eol=lf
+*.html text eol=lf
+*.md  text eol=lf
+*.txt text eol=lf
+*.json text eol=lf
