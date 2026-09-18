@@ -1,0 +1,280 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+<meta charset="utf-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1" />
+<title>Xbox 360 WebPad · panel</title>
+<style>
+  :root{
+    --bg:#0a0a0f; --panel:rgba(255,255,255,.055); --line:rgba(255,255,255,.13);
+    --txt:#f2f2f7; --dim:rgba(242,242,247,.5); --acento:#8affc1; --azul:#7aa2ff;
+    --a:#2fd35a; --b:#ff4d4d; --x:#3d9bff; --y:#ffc400;
+  }
+  *{box-sizing:border-box;}
+  html,body{margin:0;min-height:100%;background:
+      radial-gradient(90% 70% at 12% 0%,rgba(122,162,255,.12),transparent 55%),
+      radial-gradient(80% 60% at 92% 100%,rgba(138,255,193,.08),transparent 55%),
+      var(--bg);
+    color:var(--txt);font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;}
+  .wrap{max-width:1180px;margin:0 auto;padding:26px 22px 40px;}
+  header{display:flex;align-items:center;gap:14px;flex-wrap:wrap;margin-bottom:22px;}
+  .marca{font-size:13px;letter-spacing:.22em;text-transform:uppercase;color:var(--dim);font-weight:700;}
+  h1{margin:0;font-size:clamp(20px,2.6vw,30px);font-weight:750;letter-spacing:-.02em;}
+  h1 span{color:var(--acento);}
+  .pills{margin-left:auto;display:flex;gap:9px;flex-wrap:wrap;}
+  .pill{display:flex;align-items:center;gap:8px;padding:8px 14px;border-radius:999px;
+    background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px);
+    font-size:13px;font-weight:650;white-space:nowrap;}
+  .pill b{font-variant-numeric:tabular-nums;font-weight:750;}
+  #dot{width:9px;height:9px;border-radius:50%;background:#ff5c5c;box-shadow:0 0 10px #ff5c5c;}
+  #dot.on{background:var(--acento);box-shadow:0 0 10px var(--acento);}
+  #dot.medio{background:#ffc400;box-shadow:0 0 10px #ffc400;}
+  .grid{display:grid;grid-template-columns:minmax(300px,1fr) minmax(340px,1.15fr);gap:18px;align-items:start;}
+  @media (max-width:900px){.grid{grid-template-columns:1fr;}}
+  .card{background:var(--panel);border:1px solid var(--line);border-radius:20px;
+    padding:20px;backdrop-filter:blur(16px);box-shadow:0 18px 50px rgba(0,0,0,.35);}
+  .card h2{margin:0 0 14px;font-size:14px;letter-spacing:.16em;text-transform:uppercase;color:var(--dim);font-weight:700;}
+  .qr-caja{background:#fff;border-radius:16px;padding:14px;display:flex;align-items:center;justify-content:center;
+    box-shadow:0 10px 30px rgba(0,0,0,.4);}
+  .qr-caja img{width:100%;max-width:280px;height:auto;display:block;image-rendering:pixelated;}
+  .url{display:flex;align-items:center;gap:10px;margin-top:14px;background:rgba(255,255,255,.05);
+    border:1px solid var(--line);border-radius:12px;padding:11px 13px;font-size:14px;}
+  .url code{flex:1;font-family:ui-monospace,SFMono-Regular,Menlo,monospace;color:var(--acento);
+    overflow:hidden;text-overflow:ellipsis;white-space:nowrap;}
+  .mini{padding:7px 12px;border-radius:10px;background:rgba(255,255,255,.08);border:1px solid var(--line);
+    color:var(--txt);font-size:12.5px;font-weight:650;cursor:pointer;}
+  .mini:hover{background:rgba(255,255,255,.14);}
+  .ips{display:flex;gap:8px;flex-wrap:wrap;margin-top:12px;}
+  .chip{padding:6px 11px;border-radius:999px;background:rgba(255,255,255,.05);border:1px solid var(--line);
+    font-size:12px;color:var(--dim);cursor:pointer;}
+  .chip.sel{border-color:rgba(138,255,193,.6);color:#fff;background:rgba(138,255,193,.14);}
+  .nota{margin-top:14px;font-size:12.5px;color:var(--dim);line-height:1.6;}
+
+  /* ── visualización del mando ── */
+  .mando{display:grid;grid-template-columns:1fr 1fr;gap:16px;}
+  .bloque{background:rgba(255,255,255,.035);border:1px solid var(--line);border-radius:16px;padding:14px;}
+  .bloque .t{font-size:11px;letter-spacing:.14em;text-transform:uppercase;color:var(--dim);
+    font-weight:700;margin-bottom:10px;}
+  .pad-mini{position:relative;width:100%;aspect-ratio:1/1;max-width:150px;margin:0 auto;
+    border-radius:50%;border:1px solid var(--line);background:radial-gradient(circle,rgba(255,255,255,.06),transparent);}
+  .pad-mini .cruz{position:absolute;inset:14%;border-radius:50%;border:1px dashed rgba(255,255,255,.10);}
+  .punto{position:absolute;left:50%;top:50%;width:22%;height:22%;border-radius:50%;transform:translate(-50%,-50%);
+    background:var(--acento);box-shadow:0 0 14px rgba(138,255,193,.6);transition:transform .05s linear;}
+  .barra{height:9px;border-radius:999px;background:rgba(255,255,255,.08);overflow:hidden;margin:6px 0 12px;}
+  .barra i{display:block;height:100%;width:0%;border-radius:999px;
+    background:linear-gradient(90deg,rgba(138,255,193,.55),var(--acento));transition:width .06s linear;}
+  .barra.rt i{background:linear-gradient(90deg,rgba(122,162,255,.55),var(--azul));}
+  .datos{display:grid;grid-template-columns:auto 1fr;gap:6px 14px;font-size:13px;}
+  .datos .k{color:var(--dim);}
+  .datos .v{font-variant-numeric:tabular-nums;font-weight:650;}
+  .botones{display:flex;flex-wrap:wrap;gap:7px;margin-top:4px;}
+  .bchip{padding:6px 10px;border-radius:9px;background:rgba(255,255,255,.05);border:1px solid var(--line);
+    font-size:11.5px;font-weight:700;letter-spacing:.04em;color:var(--dim);transition:.08s;}
+  .bchip.on{background:linear-gradient(135deg,rgba(138,255,193,.3),rgba(122,162,255,.28));
+    border-color:rgba(138,255,193,.7);color:#fff;box-shadow:0 0 16px rgba(138,255,193,.35);}
+  .acciones{display:flex;gap:10px;flex-wrap:wrap;margin-top:16px;}
+  .btn-acc{padding:12px 18px;border-radius:14px;border:1px solid var(--line);background:rgba(255,255,255,.07);
+    color:var(--txt);font-size:13.5px;font-weight:700;cursor:pointer;transition:.12s;}
+  .btn-acc:hover{background:rgba(255,255,255,.13);}
+  .btn-acc.rojo{border-color:rgba(255,77,77,.45);color:#ffd7d7;}
+  .btn-acc.rojo:hover{background:rgba(255,77,77,.16);}
+  a.link{color:var(--azul);text-decoration:none;}
+  a.link:hover{text-decoration:underline;}
+  .aviso{margin-top:14px;padding:12px 14px;border-radius:14px;font-size:13px;line-height:1.55;
+    background:rgba(255,77,77,.12);border:1px solid rgba(255,77,77,.4);color:#ffd7d7;}
+  .aviso.ok{background:rgba(138,255,193,.08);border-color:rgba(138,255,193,.3);color:#d6ffe9;}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <div>
+      <div class="marca">Tolchx · mando virtual</div>
+      <h1>Xbox 360 <span>WebPad</span></h1>
+    </div>
+    <div class="pills">
+      <div class="pill"><span id="dot"></span><span id="txtEstado">conectando…</span></div>
+      <div class="pill">mando virtual <b id="vMando">—</b></div>
+      <div class="pill">celulares <b id="vPads">0</b></div>
+      <div class="pill">señal <b id="vSenal">—</b></div>
+    </div>
+  </header>
+
+  <div class="grid">
+    <!-- columna izquierda: QR + instrucciones -->
+    <div class="card">
+      <h2>1 · Escaneá desde el celular</h2>
+      <div class="qr-caja"><img id="qr" alt="QR del mando" /></div>
+      <div class="url"><code id="url">…</code><button class="mini" id="copiar">copiar</button></div>
+      <div class="ips" id="ips"></div>
+      <div class="aviso" id="aviso" style="display:none"></div>
+      <div class="nota">
+        El celular tiene que estar en la <b>misma red wifi</b> que esta PC.<br />
+        Ponelo en <b>horizontal</b>: stick izquierdo mueve, derecho mira, A/B/X/Y, gatillos LT/RT,
+        D-Pad, START/BACK/GUIDE.<br />
+        Dejá la pantalla del celular encendida (auto-bloqueo largo) mientras jugás.
+      </div>
+    </div>
+
+    <!-- columna derecha: estado en vivo -->
+    <div class="card">
+      <h2>2 · Estado en vivo del mando</h2>
+      <div class="mando">
+        <div class="bloque">
+          <div class="t">Stick izquierdo</div>
+          <div class="pad-mini"><div class="cruz"></div><div class="punto" id="ptL"></div></div>
+        </div>
+        <div class="bloque">
+          <div class="t">Stick derecho</div>
+          <div class="pad-mini"><div class="cruz"></div><div class="punto" id="ptR"></div></div>
+        </div>
+        <div class="bloque" style="grid-column:span 2">
+          <div class="t">Gatillos</div>
+          <div class="barra"><i id="bLT"></i></div>
+          <div class="barra rt"><i id="bRT"></i></div>
+        </div>
+        <div class="bloque" style="grid-column:span 2">
+          <div class="t">Botones</div>
+          <div class="botones" id="botones"></div>
+        </div>
+      </div>
+      <div class="datos" style="margin-top:16px">
+        <div class="k">Mensajes del celular</div><div class="v" id="vMsgs">0</div>
+        <div class="k">Servidor activo hace</div><div class="v" id="vUp">0 s</div>
+        <div class="k">Celulares conectados</div><div class="v" id="vPadsLista">—</div>
+      </div>
+      <div class="acciones">
+        <button class="btn-acc" id="probar">Probar mando (pulso A)</button>
+        <button class="btn-acc rojo" id="soltar">Soltar todo</button>
+        <button class="btn-acc" id="abrirPad">Abrir el pad en esta PC</button>
+      </div>
+      <div class="nota">
+        Si podés jugar el juego, <b>esta PC ya tiene el mando</b>: en Windows abrí
+        <code>joy.cpl</code> y vas a ver “Xbox 360 Controller for Windows”.
+      </div>
+    </div>
+  </div>
+</div>
+
+<script>
+(() => {
+  'use strict';
+  const $ = s => document.querySelector(s);
+  let ip = null, puerto = location.port || 8790, ws = null, reintento = 500;
+
+  const BOTONES = ['a','b','x','y','lb','rb','start','back','guide','l3','r3','up','down','left','right'];
+  const ETIQUETA = { a:'A', b:'B', x:'X', y:'Y', lb:'LB', rb:'RB', start:'START', back:'BACK',
+                     guide:'GUIDE', l3:'L3', r3:'R3', up:'▲', down:'▼', left:'◀', right:'▶' };
+
+  // chips de botones
+  const cont = $('#botones');
+  const chips = {};
+  for (const k of BOTONES) {
+    const d = document.createElement('div');
+    d.className = 'bchip'; d.textContent = ETIQUETA[k] || k.toUpperCase();
+    cont.appendChild(d); chips[k] = d;
+  }
+
+  function urlPad() { return `http://${ip}:${puerto}/pad`; }
+
+  function pintarUrl() {
+    $('#url').textContent = urlPad();
+    $('#qr').src = `/qr.svg?d=${encodeURIComponent(urlPad())}`;
+  }
+
+  async function cargarRed() {
+    try {
+      const r = await fetch('/api/net', { cache:'no-store' });
+      const d = await r.json();
+      puerto = d.puerto;
+      const ips = d.ips && d.ips.length ? d.ips : [{ ip:'127.0.0.1', iface:'local' }];
+      ip = ip || ips[0].ip;
+      const cont = $('#ips');
+      cont.innerHTML = '';
+      for (const it of ips) {
+        const c = document.createElement('div');
+        c.className = 'chip' + (it.ip === ip ? ' sel' : '');
+        c.textContent = `${it.ip} · ${it.iface || ''}`;
+        c.onclick = () => { ip = it.ip; pintarUrl(); cargarRed(); };
+        cont.appendChild(c);
+      }
+      pintarUrl();
+    } catch (e) { /* la red se relee al reconectar */ }
+  }
+
+  $('#copiar').onclick = async () => {
+    try { await navigator.clipboard.writeText(urlPad()); $('#copiar').textContent = '¡copiado!'; }
+    catch { $('#copiar').textContent = 'no se pudo'; }
+    setTimeout(() => $('#copiar').textContent = 'copiar', 1600);
+  };
+  $('#soltar').onclick = () => enviar({ t:'soltar' });
+  $('#probar').onclick = () => enviar({ t:'probar' });
+  $('#abrirPad').onclick = () => window.open('/pad', '_blank');
+
+  function enviar(o) { if (ws && ws.readyState === 1) ws.send(JSON.stringify(o)); }
+
+  function pintarEstado(d) {
+    $('#vMando').textContent = d.mando ? 'OK' : 'no';
+    $('#vPads').textContent = d.conectados;
+    $('#vPadsLista').textContent = d.pads && d.pads.length
+      ? d.pads.map(p => p.ip).join(', ') : '—';
+    const hace = d.senal_hace_ms;
+    $('#vSenal').textContent = hace === null || hace === undefined ? '—'
+      : (hace < 1000 ? hace + ' ms' : (hace / 1000).toFixed(1) + ' s');
+    $('#vMsgs').textContent = d.mensajes;
+    $('#vUp').textContent = d.uptime_s < 60 ? d.uptime_s + ' s'
+      : Math.round(d.uptime_s / 60) + ' min';
+
+    const e = d.estado || { ls:[0,0], rs:[0,0], lt:0, rt:0, b:{} };
+    const poner = (el, v) => {
+      const R = 39;                                  // % de recorrido
+      el.style.transform = `translate(calc(-50% + ${(v[0]*R).toFixed(1)}%), calc(-50% + ${(v[1]*R).toFixed(1)}%))`;
+    };
+    poner($('#ptL'), e.ls || [0,0]);
+    poner($('#ptR'), e.rs || [0,0]);
+    $('#bLT').style.width = ((e.lt || 0) * 100).toFixed(0) + '%';
+    $('#bRT').style.width = ((e.rt || 0) * 100).toFixed(0) + '%';
+    for (const k of BOTONES) chips[k].classList.toggle('on', !!(e.b && e.b[k]));
+
+    const dot = $('#dot');
+    dot.className = d.conectados > 0 ? 'on' : (d.mando ? 'medio' : '');
+    $('#txtEstado').textContent = d.conectados > 0 ? 'celular conectado'
+      : (d.mando ? 'esperando celular' : 'sin mando virtual');
+
+    const av = $('#aviso');
+    if (!d.mando) {
+      av.style.display = '';
+      av.className = 'aviso';
+      av.innerHTML = `El mando virtual <b>no está activo</b>: ${d.error || 'driver ViGEmBus ausente'}.<br/>
+        Cerrá esta ventana, corré <b>iniciar-mando.bat</b> como administrador una vez para instalar el driver y volvé a abrir.`;
+    } else if (d.conectados > 0) {
+      av.style.display = '';
+      av.className = 'aviso ok';
+      av.innerHTML = 'Celular conectado y enviando señales. El juego ya recibe el mando Xbox 360.';
+    } else {
+      av.style.display = 'none';
+    }
+  }
+
+  function conectar() {
+    const proto = location.protocol === 'https:' ? 'wss' : 'ws';
+    ws = new WebSocket(`${proto}://${location.host}/ws`);
+    ws.onopen = () => { reintento = 500; ws.send(JSON.stringify({ t:'hello', role:'panel' })); };
+    ws.onmessage = ev => {
+      let m; try { m = JSON.parse(ev.data); } catch { return; }
+      if (m.t === 'estado') pintarEstado(m);
+    };
+    ws.onclose = () => {
+      $('#dot').className = '';
+      $('#txtEstado').textContent = 'panel desconectado';
+      setTimeout(conectar, reintento = Math.min(reintento * 1.6, 4000));
+    };
+    ws.onerror = () => { try { ws.close(); } catch {} };
+  }
+
+  cargarRed();
+  conectar();
+})();
+</script>
+</body>
+</html>

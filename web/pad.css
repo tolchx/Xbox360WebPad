@@ -1,0 +1,154 @@
+/* ==========================================================================
+   Mando Xbox 360 web — celular en horizontal
+   Layout fijo sobre el viewport, unidades vmin (en horizontal vmin = alto).
+   ========================================================================== */
+:root{
+  --bg:#0a0a0f;
+  --panel:rgba(255,255,255,.055);
+  --panel2:rgba(255,255,255,.10);
+  --line:rgba(255,255,255,.15);
+  --txt:#f2f2f7;
+  --dim:rgba(242,242,247,.48);
+  --a:#2fd35a; --b:#ff4d4d; --x:#3d9bff; --y:#ffc400;
+  --acento:#8affc1;
+  --d-stick:min(31vmin,190px);
+  --d-stick-r:min(27vmin,168px);
+  --d-dpad:min(25vmin,150px);
+  --d-abxy:min(31vmin,190px);
+  --m:max(2.6vmin,10px);          /* margen general */
+}
+*{box-sizing:border-box; -webkit-tap-highlight-color:transparent;
+  -webkit-user-select:none; user-select:none; -webkit-touch-callout:none;
+  touch-action:none;}
+html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;position:fixed;inset:0;
+  background:
+    radial-gradient(120% 90% at 50% 0%,rgba(90,120,255,.10),transparent 60%),
+    radial-gradient(90% 70% at 50% 100%,rgba(47,211,90,.07),transparent 60%),
+    var(--bg);
+  color:var(--txt);
+  font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",system-ui,sans-serif;
+  touch-action:none; overscroll-behavior:none;}
+
+/* ── barra superior ─────────────────────────────────────────────────────── */
+#top{position:fixed;top:0;left:0;right:0;display:flex;justify-content:center;align-items:center;
+  gap:10px;padding:var(--m);z-index:40;pointer-events:none;}
+#estado{display:flex;align-items:center;gap:7px;padding:6px 13px;border-radius:999px;
+  background:var(--panel);border:1px solid var(--line);backdrop-filter:blur(14px);
+  font-size:clamp(10px,2.1vmin,14px);font-weight:650;letter-spacing:.02em;white-space:nowrap;}
+#dot{width:8px;height:8px;border-radius:50%;background:#ff5c5c;box-shadow:0 0 10px #ff5c5c;transition:.25s;}
+#dot.on{background:var(--acento);box-shadow:0 0 10px var(--acento);}
+#ping{color:var(--dim);font-variant-numeric:tabular-nums;}
+#sinmando{position:fixed;top:calc(var(--m) + 34px);left:50%;transform:translateX(-50%);
+  z-index:41;padding:6px 12px;border-radius:999px;background:rgba(255,77,77,.16);
+  border:1px solid rgba(255,77,77,.5);color:#ffd7d7;
+  font-size:clamp(10px,2vmin,13px);font-weight:600;white-space:nowrap;}
+
+/* ── botones base ───────────────────────────────────────────────────────── */
+.btn{display:flex;align-items:center;justify-content:center;position:relative;
+  background:var(--panel);border:1.5px solid var(--line);backdrop-filter:blur(12px);
+  color:var(--txt);font-weight:750;letter-spacing:.06em;
+  box-shadow:0 6px 18px rgba(0,0,0,.35);transition:transform .07s,background .12s,border-color .12s;}
+.btn.act{transform:scale(.93);
+  background:linear-gradient(135deg,rgba(138,255,193,.34),rgba(122,162,255,.30));
+  border-color:rgba(138,255,193,.75);
+  box-shadow:0 0 22px rgba(138,255,193,.35);}
+.btn .et{font-size:clamp(9px,2.1vmin,15px);}
+
+/* gatillos + hombros */
+.par{position:fixed;top:var(--m);display:flex;gap:calc(var(--m)*.7);z-index:30;}
+.arriba-izq{left:var(--m);}
+.arriba-der{right:var(--m);}
+.gatillo{width:min(27vmin,165px);height:min(13vmin,78px);border-radius:min(3vmin,16px);
+  flex-direction:column;gap:4px;overflow:hidden;}
+.hombro{width:min(21vmin,128px);height:min(13vmin,78px);border-radius:min(3vmin,16px);}
+.gatillo .barra{position:absolute;left:0;bottom:0;height:100%;width:0%;
+  background:linear-gradient(90deg,rgba(138,255,193,.35),rgba(138,255,193,.6));
+  transition:width .06s linear;pointer-events:none;}
+.gatillo .et{position:relative;z-index:2;}
+
+/* ── centro: back / guide / start (segunda fila, debajo del estado) ─────── */
+#centro{position:fixed;top:calc(var(--m) + 9vmin);left:50%;transform:translateX(-50%);
+  display:flex;gap:calc(var(--m)*.5);z-index:30;}
+.pill{padding:0 min(2.8vmin,16px);height:min(8vmin,46px);border-radius:999px;}
+.pill .et{font-size:clamp(8px,1.6vmin,12px);color:var(--dim);}
+.pill.guia{border-color:rgba(138,255,193,.4);}
+.pill.guia .et{color:var(--acento);}
+
+/* ── sticks ─────────────────────────────────────────────────────────────── */
+.zona-stick{position:fixed;bottom:var(--m);left:var(--m);width:var(--d-stick);height:var(--d-stick);
+  border-radius:50%;z-index:25;touch-action:none;
+  background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.075),rgba(255,255,255,.02));
+  border:1.5px solid var(--line);backdrop-filter:blur(8px);}
+.zona-stick.derecha{left:auto;right:calc(var(--m) + var(--d-abxy) + var(--m));}
+.aro{position:absolute;inset:12%;border-radius:50%;border:1px dashed rgba(255,255,255,.10);}
+.knob{position:absolute;left:50%;top:50%;width:44%;height:44%;border-radius:50%;
+  transform:translate(-50%,-50%);transition:transform .04s linear;
+  background:linear-gradient(150deg,rgba(255,255,255,.30),rgba(255,255,255,.10));
+  border:1.5px solid rgba(255,255,255,.34);box-shadow:0 6px 22px rgba(0,0,0,.45);}
+#zStickL .knob{border-color:rgba(138,255,193,.65);
+  box-shadow:0 6px 22px rgba(0,0,0,.45),0 0 22px rgba(138,255,193,.22);}
+#zStickR .knob{border-color:rgba(122,162,255,.65);
+  box-shadow:0 6px 22px rgba(0,0,0,.45),0 0 22px rgba(122,162,255,.22);}
+.et-stick{position:absolute;left:50%;bottom:calc(-1.2em - 4px);transform:translateX(-50%);
+  font-size:clamp(7.5px,1.5vmin,11px);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--dim);font-weight:700;white-space:nowrap;}
+
+/* ── D-Pad ──────────────────────────────────────────────────────────────── */
+#dpad{position:fixed;left:var(--m);bottom:calc(var(--m) + var(--d-stick) + 4.6vmin);
+  width:var(--d-dpad);height:var(--d-dpad);z-index:28;border-radius:50%;
+  background:radial-gradient(circle at 50% 50%,rgba(255,255,255,.05),rgba(255,255,255,.015));
+  border:1.5px solid var(--line);touch-action:none;}
+.flecha{position:absolute;width:31%;height:31%;background:rgba(255,255,255,.13);
+  border-radius:22%;transition:background .08s,box-shadow .08s;
+  display:flex;align-items:center;justify-content:center;}
+.flecha::after{font-size:clamp(9px,2.1vmin,15px);line-height:1;color:rgba(255,255,255,.75);
+  font-weight:700;}
+.f-up::after{content:"▲";}
+.f-down::after{content:"▼";}
+.f-left::after{content:"◀";}
+.f-right::after{content:"▶";}
+.f-up{left:34.5%;top:4%;}
+.f-down{left:34.5%;bottom:4%;}
+.f-left{left:4%;top:34.5%;}
+.f-right{right:4%;top:34.5%;}
+.flecha.on{background:var(--acento);box-shadow:0 0 18px rgba(138,255,193,.6);}
+.hueco{position:absolute;left:35%;top:35%;width:30%;height:30%;border-radius:50%;
+  background:rgba(10,10,15,.75);border:1px solid var(--line);}
+.et-dpad{position:absolute;left:50%;top:calc(100% + 0.4vmin);transform:translateX(-50%);
+  font-size:clamp(7.5px,1.5vmin,11px);letter-spacing:.14em;text-transform:uppercase;
+  color:var(--dim);font-weight:700;}
+
+/* ── ABXY ───────────────────────────────────────────────────────────────── */
+#abxy{position:fixed;right:var(--m);bottom:var(--m);width:var(--d-abxy);height:var(--d-abxy);z-index:26;}
+.cara{position:absolute;width:44%;height:44%;border-radius:50%;
+  background:var(--panel2);border:1.5px solid var(--line);backdrop-filter:blur(12px);}
+.cara span{font-size:clamp(13px,3.4vmin,26px);font-weight:800;color:#fff;opacity:.92;}
+.cara.a{right:0;bottom:0;border-color:rgba(47,211,90,.55);
+  background:radial-gradient(circle at 35% 30%,rgba(47,211,90,.34),rgba(47,211,90,.13));}
+.cara.b{right:0;top:0;border-color:rgba(255,77,77,.55);
+  background:radial-gradient(circle at 35% 30%,rgba(255,77,77,.34),rgba(255,77,77,.13));}
+.cara.x{left:0;bottom:0;border-color:rgba(61,155,255,.55);
+  background:radial-gradient(circle at 35% 30%,rgba(61,155,255,.34),rgba(61,155,255,.13));}
+.cara.y{left:0;top:0;border-color:rgba(255,196,0,.55);
+  background:radial-gradient(circle at 35% 30%,rgba(255,196,0,.34),rgba(255,196,0,.13));}
+.cara.act{transform:scale(.9);box-shadow:0 0 24px rgba(255,255,255,.35);filter:brightness(1.5);}
+
+/* ── overlay rotar ──────────────────────────────────────────────────────── */
+#rotate{position:fixed;inset:0;z-index:90;display:none;flex-direction:column;align-items:center;
+  justify-content:center;gap:18px;background:rgba(10,10,15,.97);text-align:center;padding:26px;}
+#rotate.on{display:flex;}
+#rotate .ph{font-size:56px;animation:rot 2.2s ease-in-out infinite;}
+@keyframes rot{0%,40%{transform:rotate(0)}60%,100%{transform:rotate(-90deg)}}
+#rotate p{margin:0;font-size:15px;color:var(--dim);max-width:300px;line-height:1.5;}
+
+/* ── hint ───────────────────────────────────────────────────────────────── */
+#hint{position:fixed;left:50%;top:50%;transform:translate(-50%,-50%);z-index:20;
+  font-size:clamp(11px,2.2vmin,16px);color:var(--dim);text-align:center;line-height:1.7;
+  pointer-events:none;transition:opacity .6s;padding:0 20px;}
+#hint b{color:var(--acento);}
+
+/* pantallas muy bajas (celulares apaisados chicos): achicamos todo */
+@media (max-height:420px){
+  :root{--d-stick:min(34vmin,150px); --d-abxy:min(34vmin,150px); --d-dpad:min(27vmin,120px);}
+  .gatillo,.hombro{height:min(14vmin,58px);}
+}

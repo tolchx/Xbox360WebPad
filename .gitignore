@@ -1,0 +1,23 @@
+# ── entorno de desarrollo ─────────────────────────────────────────────────
+.venv/
+__pycache__/
+*.py[cod]
+*.egg-info/
+
+# ── paquete portable (se genera con empaquetar-portable.bat) ──────────────
+runtime/
+drivers/
+python-embed.zip
+get-pip.py
+tmp/
+wheels/
+
+# ── zips y artefactos ─────────────────────────────────────────────────────
+*.zip
+*.log
+
+# ── editores / sistema ────────────────────────────────────────────────────
+.vscode/
+.idea/
+Thumbs.db
+desktop.ini
