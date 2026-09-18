@@ -220,6 +220,25 @@ async def main() -> int:
                 await chequear(f"fader {fader['id']} -> CC {fader['num']}",
                                f"cc {fader['num']}=99")
 
+            # ── guardas de la UI del celular ──────────────────────────────
+            # Bug real: #capa-midi tiene display:flex y eso le gana al atributo
+            # hidden → la botonera MIDI se dibujaba SOBRE el mando Xbox y el
+            # switch no la ocultaba. Con la regla [hidden]{display:none !important}
+            # el atributo vuelve a mandar.
+            async with sesion.get(f"{args.http}/static/pad.css") as r:
+                css = (await r.text()).replace(" ", "").replace("\n", "")
+            async with sesion.get(f"{args.http}/static/pad.html") as r:
+                html_pad = await r.text()
+            tiene_regla = "[hidden]{display:none!important" in css
+            tiene_capas = 'id="capa-jo' in html_pad and 'id="capa-midi"' in html_pad
+            if tiene_regla and tiene_capas:
+                ok += 1
+                print(f"{'UI: hidden le gana a display:flex':<36} {'OK':<10} capas del celular en orden")
+            else:
+                fallos += 1
+                print(f"{'UI: hidden le gana a display:flex':<36} {'FALLA':<10} "
+                      f"regla={tiene_regla} capas={tiene_capas}")
+
             # ── joystick -> MIDI ─────────────────────────────────────────
             async def restaurar(etiqueta: str = "mapeo original restaurado") -> None:
                 nonlocal ok, fallos

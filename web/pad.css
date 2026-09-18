@@ -158,6 +158,10 @@ html,body{margin:0;padding:0;width:100%;height:100%;overflow:hidden;position:fix
 #hint b{color:var(--acento);}
 
 /* ── botonera MIDI ──────────────────────────────────────────────────────── */
+/* El atributo hidden tiene que GANARLE a los display:flex de las capas:
+   sin esto, #capa-midi (display:flex) se ve siempre y se superpone al mando. */
+[hidden]{display:none !important;}
+
 #capa-midi{position:fixed;inset:0;display:flex;flex-direction:column;gap:1.4vmin;
   padding:calc(var(--m) + 9.5vmin) var(--m) var(--m);z-index:22;}
 #midi-bar{display:flex;align-items:center;gap:1.2vmin;}
